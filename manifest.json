@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "P2PShare - High Speed Sharing",
+  "version": "1.0",
+  "description": "Share files directly between peers with no size limits and a sleek sidebar interface.",
+  "permissions": ["sidePanel"],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open P2PShare Side Panel",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

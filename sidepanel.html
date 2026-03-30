@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P2PShare</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <div class="logo">
+        <span class="logo-icon">⚡</span>
+        <h1>P2PShare</h1>
+      </div>
+      <div id="status-badge" class="status-badge disconnected">Disconnected</div>
+    </header>
+
+    <main>
+      <!-- Connection Screen -->
+      <section id="setup-section" class="card active">
+        <div class="card-content">
+          <h2>Start Sharing</h2>
+          <p class="subtitle">Generate a code to host or enter one to join.</p>
+          
+          <div class="action-group">
+            <button id="btn-host" class="primary-btn">
+              <span class="icon">📡</span> Host a Room
+            </button>
+            <div class="divider"><span>OR</span></div>
+            <div class="input-group">
+              <input type="text" id="join-id" placeholder="Enter peer code...">
+              <button id="btn-join" class="secondary-btn">Join</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Active Connection Screen -->
+      <section id="share-section" class="card hidden">
+        <div class="card-content">
+          <div class="room-info">
+            <span class="label">Connected to:</span>
+            <span id="remote-peer-id" class="code-text">...</span>
+          </div>
+
+          <div id="drop-zone" class="drop-zone">
+            <div class="drop-zone-content">
+              <span class="drop-icon">📁</span>
+              <p>Drag & Drop files here</p>
+              <label for="file-input" class="file-label">or browse files</label>
+              <input type="file" id="file-input" hidden multiple>
+            </div>
+          </div>
+
+          <div id="transfer-list" class="transfer-list">
+            <!-- Transfer items will appear here -->
+          </div>
+          
+          <button id="btn-disconnect" class="outline-btn">Disconnect</button>
+        </div>
+      </section>
+      
+      <!-- Hosting Screen -->
+       <section id="hosting-section" class="card hidden">
+        <div class="card-content">
+          <h2>Hosting Room</h2>
+          <p class="subtitle">Share this code with your peer:</p>
+          <div class="code-display">
+            <span id="my-peer-id" class="large-code">------</span>
+            <button id="btn-copy-id" class="icon-btn" title="Copy Code">📋</button>
+          </div>
+          <p class="info-text">Waiting for someone to join...</p>
+          <button id="btn-cancel-host" class="outline-btn">Cancel</button>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Secure direct P2P transfer • No size limits</p>
+    </footer>
+  </div>
+
+  <script src="peerjs.min.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
