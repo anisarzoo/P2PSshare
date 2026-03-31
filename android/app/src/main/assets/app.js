@@ -1,4 +1,4 @@
-﻿const DEFAULT_CONFIG = {
+const DEFAULT_CONFIG = {
   signalingHost: '',
   signalingPort: '',
   signalingPath: '/peerjs',
@@ -7,7 +7,7 @@
   ackEvery: 32,
 };
 
-const STORAGE_KEY = 'p2pshare_config_v2';
+const STORAGE_KEY = 'connectvia_config_v2';
 const CHANNEL_BUFFER_LIMIT = 2 * 1024 * 1024;
 
 const state = {

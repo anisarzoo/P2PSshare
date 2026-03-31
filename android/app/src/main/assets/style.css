@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg-top: #dff4ef;
   --bg-bottom: #f8f4e9;
   --panel-bg: rgba(255, 255, 255, 0.82);
@@ -37,6 +37,24 @@ body {
   overflow-x: hidden;
 }
 
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(22, 159, 144, 0.35);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(22, 159, 144, 0.65);
+}
+
 .hidden {
   display: none !important;
 }
@@ -68,7 +86,7 @@ body {
 .app-shell {
   position: relative;
   z-index: 2;
-  width: min(1080px, calc(100% - 24px));
+  width: min(860px, calc(100% - 24px));
   margin: 16px auto 28px;
 }
 
@@ -152,8 +170,8 @@ h1 {
 }
 
 .main-grid {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   margin-top: 16px;
 }
@@ -169,10 +187,6 @@ h1 {
 
 .panel.active {
   animation: rise 260ms ease-out;
-}
-
-.activity-panel {
-  grid-column: 1 / -1;
 }
 
 h2,
@@ -639,13 +653,7 @@ footer {
 }
 
 @media (max-width: 940px) {
-  .main-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .activity-panel {
-    grid-column: auto;
-  }
+  /* Adjusted globally */
 }
 
 @media (max-width: 680px) {

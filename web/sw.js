@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'p2pshare-v2';
+const CACHE_NAME = 'connectvia-v2';
 const CORE_ASSETS = [
   './',
   './index.html',
