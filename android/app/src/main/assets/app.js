@@ -36,6 +36,9 @@ const elements = {
   transferList: document.getElementById('transfer-list'),
   dropZone: document.getElementById('drop-zone'),
   fileInput: document.getElementById('file-input'),
+  folderInput: document.getElementById('folder-input'),
+  btnPickFiles: document.getElementById('btn-pick-files'),
+  btnPickFolder: document.getElementById('btn-pick-folder'),
   noteInbox: document.getElementById('note-inbox'),
   textNote: document.getElementById('text-note'),
   activityLog: document.getElementById('activity-log'),
@@ -316,7 +319,8 @@ function initPeer(preferredId = undefined) {
   }
 
   const options = buildPeerOptions();
-  state.peer = preferredId ? new Peer(preferredId, options) : new Peer(undefined, options);
+  const peerId = preferredId || generateRoomCode();
+  state.peer = new Peer(peerId, options);
 
   state.peer.on('open', (id) => {
     state.myId = id;
@@ -492,14 +496,27 @@ function createTransferUI(id, name, size, direction) {
 
   const title = document.createElement('span');
   title.className = 'transfer-name';
-  title.textContent = `${direction === 'outgoing' ? 'Sending' : 'Receiving'} - ${name}`;
+  title.textContent = `${direction === 'outgoing' ? 'Sending' : 'Receiving'} — ${name}`;
+
+  const headRight = document.createElement('div');
+  headRight.className = 'transfer-head-right';
 
   const sizeLabel = document.createElement('span');
   sizeLabel.className = 'transfer-meta';
   sizeLabel.textContent = formatBytes(size);
 
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn-cancel';
+  cancelBtn.id = `cancel-${id}`;
+  cancelBtn.title = 'Cancel transfer';
+  cancelBtn.innerHTML = '✕';
+  cancelBtn.addEventListener('click', () => cancelTransfer(id, direction));
+
+  headRight.appendChild(sizeLabel);
+  headRight.appendChild(cancelBtn);
+
   head.appendChild(title);
-  head.appendChild(sizeLabel);
+  head.appendChild(headRight);
 
   const progressWrap = document.createElement('div');
   progressWrap.className = 'progress-wrap';
@@ -532,6 +549,35 @@ function createTransferUI(id, name, size, direction) {
 
   elements.transferList.prepend(wrapper);
   return wrapper;
+}
+
+function cancelTransfer(id, direction) {
+  if (direction === 'outgoing') {
+    const record = state.outgoingTransfers.get(id);
+    if (record) {
+      record.cancelled = true;
+      state.outgoingTransfers.delete(id);
+    }
+  } else {
+    state.incomingTransfers.delete(id);
+  }
+
+  safeSend({ type: 'file-cancel', transferId: id });
+
+  markTransferCancelled(id);
+  logActivity(`Transfer cancelled.`);
+}
+
+function markTransferCancelled(id) {
+  const bar = document.getElementById(`progress-${id}`);
+  const status = document.getElementById(`status-${id}`);
+  const speed = document.getElementById(`speed-${id}`);
+  const cancelBtn = document.getElementById(`cancel-${id}`);
+
+  if (bar) { bar.style.background = 'var(--danger, #c84334)'; bar.style.width = '100%'; }
+  if (status) status.textContent = 'Cancelled';
+  if (speed) speed.textContent = '—';
+  if (cancelBtn) cancelBtn.remove();
 }
 
 function updateTransferProgress(id, progress, transferredBytes, totalBytes, startTs, statusLabel) {
@@ -596,6 +642,9 @@ function handleIncomingData(payload) {
     case 'file-ack':
       handleIncomingAck(payload);
       break;
+    case 'file-cancel':
+      handleIncomingCancel(payload);
+      break;
     case 'text-note':
       handleIncomingNote(payload);
       break;
@@ -605,6 +654,14 @@ function handleIncomingData(payload) {
     default:
       break;
   }
+}
+
+function handleIncomingCancel(payload) {
+  const id = payload.transferId;
+  state.incomingTransfers.delete(id);
+  state.outgoingTransfers.delete(id);
+  markTransferCancelled(id);
+  logActivity('Remote peer cancelled a transfer.');
 }
 
 function handleIncomingFileStart(payload) {
@@ -733,19 +790,47 @@ function sleep(ms) {
   });
 }
 
-async function sendSelectedFiles(fileList) {
+async function sendSelectedFiles(fileList, items) {
   if (!state.conn || !state.conn.open) {
     alert('Connect to a room before sending files.');
     return;
   }
 
-  const files = Array.from(fileList || []);
+  const files = [];
+  
+  if (items && items.length > 0) {
+    for (const item of items) {
+      const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      if (entry) {
+        await getFilesFromEntry(entry, files);
+      }
+    }
+  } else {
+    for (const file of Array.from(fileList || [])) {
+      if (file.size === 0 && !file.type) continue;
+      files.push(file);
+    }
+  }
+
   if (!files.length) {
     return;
   }
 
   for (const file of files) {
     await sendFile(file);
+  }
+}
+
+async function getFilesFromEntry(entry, fileList) {
+  if (entry.isFile) {
+    const file = await new Promise((resolve) => entry.file(resolve));
+    fileList.push(file);
+  } else if (entry.isDirectory) {
+    const dirReader = entry.createReader();
+    const entries = await new Promise((resolve) => dirReader.readEntries(resolve));
+    for (const e of entries) {
+      await getFilesFromEntry(e, fileList);
+    }
   }
 }
 
@@ -776,10 +861,20 @@ async function sendFile(file) {
   let offset = 0;
 
   for (let index = 0; index < totalChunks; index += 1) {
+    if (transferRecord.cancelled) {
+      markTransferCancelled(transferId);
+      return;
+    }
+
     const end = Math.min(offset + state.config.chunkSize, file.size);
     const chunk = await file.slice(offset, end).arrayBuffer();
 
     await waitForBufferSpace();
+
+    if (transferRecord.cancelled) {
+      markTransferCancelled(transferId);
+      return;
+    }
 
     safeSend({
       type: 'file-chunk',
@@ -961,7 +1056,6 @@ function bindEvents() {
   document.getElementById('btn-advanced').addEventListener('click', toggleAdvancedPanel);
   document.getElementById('btn-save-config').addEventListener('click', saveAdvancedConfig);
   document.getElementById('btn-send-note').addEventListener('click', queueNote);
-  document.getElementById('btn-pick-files').addEventListener('click', () => elements.fileInput.click());
 
   document.getElementById('btn-native-bluetooth').addEventListener('click', () => invokeNativeAction('startBluetoothPairing'));
   document.getElementById('btn-native-nfc').addEventListener('click', () => invokeNativeAction('startNfcPairing'));
@@ -989,12 +1083,31 @@ function bindEvents() {
     }
   });
 
+  elements.btnPickFiles.addEventListener('click', (e) => {
+    e.stopPropagation();
+    elements.fileInput.click();
+  });
+
+  elements.btnPickFolder.addEventListener('click', (e) => {
+    e.stopPropagation();
+    elements.folderInput.click();
+  });
+
   elements.fileInput.addEventListener('change', async () => {
     await sendSelectedFiles(elements.fileInput.files);
     elements.fileInput.value = '';
   });
 
-  elements.dropZone.addEventListener('click', () => elements.fileInput.click());
+  elements.folderInput.addEventListener('change', async () => {
+    await sendSelectedFiles(elements.folderInput.files);
+    elements.folderInput.value = '';
+  });
+
+  elements.dropZone.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') {
+      elements.fileInput.click();
+    }
+  });
 
   elements.dropZone.addEventListener('dragover', (event) => {
     event.preventDefault();
@@ -1008,7 +1121,7 @@ function bindEvents() {
   elements.dropZone.addEventListener('drop', async (event) => {
     event.preventDefault();
     elements.dropZone.classList.remove('dragging');
-    await sendSelectedFiles(event.dataTransfer.files);
+    await sendSelectedFiles(event.dataTransfer.files, event.dataTransfer.items);
   });
 }
 

@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
@@ -38,7 +38,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            Browser.Source = new Uri("https://p2pshare.example.com");
+            Browser.Source = new Uri("https://connectvia.netlify.app");
         }
     }
 

@@ -478,6 +478,13 @@ textarea {
   font-size: 0.86rem;
 }
 
+.picker-group {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 .note-box {
   margin-top: 14px;
   display: grid;
@@ -524,13 +531,20 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-size: 0.88rem;
+}
+
+.transfer-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .transfer-name {
   font-weight: 800;
-  max-width: 70%;
+  max-width: 60%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -539,6 +553,34 @@ textarea {
 .transfer-meta {
   color: var(--text-soft);
   font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.btn-cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid rgba(200, 67, 52, 0.25);
+  background: rgba(200, 67, 52, 0.1);
+  color: var(--danger);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 120ms ease, transform 100ms ease;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+.btn-cancel:hover {
+  background: rgba(200, 67, 52, 0.22);
+}
+
+.btn-cancel:active {
+  transform: scale(0.92);
 }
 
 .progress-wrap {
@@ -652,18 +694,19 @@ footer {
   }
 }
 
-@media (max-width: 940px) {
-  /* Adjusted globally */
-}
+/* ---- Mobile / Small Screen ---- */
 
 @media (max-width: 680px) {
   .topbar {
     flex-direction: column;
     align-items: flex-start;
+    padding: 12px 14px;
+    gap: 10px;
   }
 
   .header-badges {
     justify-content: flex-start;
+    width: 100%;
   }
 
   .action-grid,
@@ -677,11 +720,121 @@ footer {
   }
 
   .app-shell {
-    width: calc(100% - 14px);
-    margin: 10px auto 16px;
+    width: calc(100% - 12px);
+    margin: 8px auto 12px;
   }
 
   .panel {
-    padding: 15px;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  h2 {
+    font-size: 1.2rem;
+  }
+
+  .subtitle {
+    font-size: 0.86rem;
+  }
+
+  .btn {
+    padding: 13px 14px;
+    font-size: 0.9rem;
+  }
+
+  .drop-zone {
+    padding: 18px 12px;
+  }
+
+  .drop-title {
+    font-size: 0.92rem;
+  }
+
+  .picker-group {
+    gap: 8px;
+  }
+
+  .picker-group .btn {
+    padding: 10px 16px;
+    font-size: 0.84rem;
+    flex: 1;
+  }
+
+  .transfer-name {
+    max-width: 50%;
+    font-size: 0.82rem;
+  }
+
+  .transfer-meta {
+    font-size: 0.76rem;
+  }
+
+  .transfer-foot {
+    font-size: 0.7rem;
+  }
+
+  .room-pill {
+    font-size: 0.82rem;
+    padding: 10px;
+  }
+
+  .room-pill strong {
+    font-size: 0.92rem;
+  }
+
+  .large-code {
+    font-size: clamp(1.6rem, 5vw, 2.2rem);
+  }
+
+  .note-box label {
+    font-size: 0.82rem;
+  }
+
+  .note-box textarea {
+    font-size: 0.86rem;
+  }
+
+  .activity-log {
+    max-height: 160px;
+  }
+
+  .activity-log li {
+    font-size: 0.78rem;
+    padding: 8px;
   }
 }
+
+@media (max-width: 380px) {
+  .app-shell {
+    width: calc(100% - 8px);
+    margin: 6px auto 10px;
+  }
+
+  .topbar {
+    padding: 10px 12px;
+    border-radius: 16px;
+  }
+
+  .panel {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .logo-img {
+    width: 34px;
+    height: 34px;
+  }
+
+  h1 {
+    font-size: 1.15rem;
+  }
+
+  .drop-zone {
+    padding: 14px 10px;
+  }
+}
+

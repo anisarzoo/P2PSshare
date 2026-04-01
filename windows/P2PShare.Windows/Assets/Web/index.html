@@ -127,9 +127,13 @@
 
         <div id="drop-zone" class="drop-zone">
           <input type="file" id="file-input" hidden multiple>
-          <p class="drop-title">Drop files here or tap to select</p>
-          <p class="drop-help">Transfer queue supports multiple files and large payloads.</p>
-          <button id="btn-pick-files" class="btn btn-secondary" type="button">Choose Files</button>
+          <input type="file" id="folder-input" hidden webkitdirectory directory multiple>
+          <p class="drop-title">Drop files or folders here</p>
+          <p class="drop-help">The queue supports multiple files and recursive folder transfer.</p>
+          <div class="picker-group">
+            <button id="btn-pick-files" class="btn btn-secondary" type="button">Choose Files</button>
+            <button id="btn-pick-folder" class="btn btn-secondary" type="button">Choose Folder</button>
+          </div>
         </div>
 
         <div class="note-box">

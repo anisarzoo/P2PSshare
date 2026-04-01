@@ -11,31 +11,69 @@ const myPeerIdEl = document.getElementById('my-peer-id');
 const remotePeerIdEl = document.getElementById('remote-peer-id');
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
+const folderInput = document.getElementById('folder-input');
 const transferList = document.getElementById('transfer-list');
 const joinIdInput = document.getElementById('join-id');
 const qrcodeContainer = document.getElementById('qrcode-container');
+const btnPickFiles = document.getElementById('btn-pick-files');
+const btnPickFolder = document.getElementById('btn-pick-folder');
 
-// UPDATE THIS: Point this to your hosted web app (e.g. GitHub Pages or Vercel)
-const WEB_APP_URL = window.location.origin + "/web"; 
+// Web app URL for QR codes
+const WEB_APP_URL = "https://connectvia.netlify.app";
+
+// Transfer config — matches web app
+const CHUNK_SIZE = 65536; // 64KB
+const CHANNEL_BUFFER_LIMIT = 2 * 1024 * 1024;
+
+// Transfer state
+const incomingTransfers = new Map();
+const outgoingTransfers = new Map();
+
+// --- Helpers ---
+
+function generateRoomCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function formatSpeed(bytes, startTs) {
+  const elapsed = Math.max((performance.now() - startTs) / 1000, 0.05);
+  return `${formatBytes(bytes / elapsed)}/s`;
+}
+
+function createTransferId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // --- Initialization ---
 
 function initPeer(id = null) {
   if (peer) peer.destroy();
-  
-  peer = new Peer(id, {
-    debug: 2
-  });
 
-  peer.on('open', (id) => {
-    myId = id;
-    myPeerIdEl.textContent = id;
+  const peerId = id || generateRoomCode();
+  peer = new Peer(peerId, { debug: 1 });
+
+  peer.on('open', (openId) => {
+    myId = openId;
+    myPeerIdEl.textContent = openId;
     updateStatus('Waiting', 'waiting');
-    generateQRCode(id);
+    generateQRCode(openId);
   });
 
   peer.on('connection', (connection) => {
-    if (conn) {
+    if (conn && conn.open) {
       connection.close();
       return;
     }
@@ -44,7 +82,11 @@ function initPeer(id = null) {
 
   peer.on('error', (err) => {
     console.error('Peer error:', err);
-    alert('Error: ' + err.type);
+    if (err && err.type === 'peer-unavailable') {
+      alert('Room not found. Check the code and try again.');
+    } else {
+      alert('Connection error: ' + (err.type || 'unknown'));
+    }
     resetToSetup();
   });
 
@@ -55,29 +97,27 @@ function initPeer(id = null) {
 
 function generateQRCode(id) {
   qrcodeContainer.innerHTML = '';
-  // The QR code contains the URL of the web app with the ID as a fragment
   const joinUrl = `${WEB_APP_URL}/#${id}`;
-  
+
   new QRCode(qrcodeContainer, {
     text: joinUrl,
-    width: 200,
-    height: 200,
-    colorDark: "#1a73e8",
+    width: 140,
+    height: 140,
+    colorDark: "#0f3f3a",
     colorLight: "#ffffff",
-    correctLevel: QRCode.CorrectLevel.H
+    correctLevel: QRCode.CorrectLevel.M
   });
 }
 
-// --- Connection Handling ---
+// --- Connection ---
 
 function setupConnection(connection) {
   conn = connection;
-  
+
   conn.on('open', () => {
     showSection(shareSection);
     remotePeerIdEl.textContent = conn.peer;
     updateStatus('Connected', 'connected');
-    console.log('Connected to: ' + conn.peer);
   });
 
   conn.on('data', (data) => {
@@ -85,7 +125,6 @@ function setupConnection(connection) {
   });
 
   conn.on('close', () => {
-    console.log('Connection closed');
     resetToSetup();
   });
 
@@ -95,102 +134,201 @@ function setupConnection(connection) {
   });
 }
 
+// --- Incoming Data Handler (compatible with web app protocol) ---
+
 function handleIncomingData(data) {
-  if (data.type === 'file-start') {
-    createTransferUI(data.transferId, data.name, data.size, 'receiving');
-  } else if (data.type === 'file-chunk') {
-    handleFileChunk(data);
-  } else if (data.type === 'file-end') {
-    finalizeFile(data.transferId);
+  if (!data || typeof data !== 'object') return;
+
+  switch (data.type) {
+    case 'file-start':
+      handleIncomingFileStart(data);
+      break;
+    case 'file-chunk':
+      handleIncomingFileChunk(data);
+      break;
+    case 'file-end':
+      handleIncomingFileEnd(data);
+      break;
+    case 'file-ack':
+      handleIncomingAck(data);
+      break;
+    case 'file-cancel':
+      handleIncomingCancel(data);
+      break;
+    case 'text-note':
+      break;
+    case 'capabilities':
+      break;
+    default:
+      break;
   }
 }
 
-// --- File Transfer Logic ---
-
-const incomingFiles = {}; // Store chunks by transferId
-
-function handleFileChunk(data) {
-  const { transferId, chunk, index } = data;
-  if (!incomingFiles[transferId]) {
-    incomingFiles[transferId] = {
-      chunks: [],
-      receivedSize: 0
-    };
-  }
-  
-  incomingFiles[transferId].chunks[index] = chunk;
-  incomingFiles[transferId].receivedSize += chunk.byteLength;
-  
-  const progress = (incomingFiles[transferId].receivedSize / data.totalSize) * 100;
-  updateTransferProgress(transferId, progress);
+function handleIncomingCancel(data) {
+  const id = data.transferId;
+  incomingTransfers.delete(id);
+  outgoingTransfers.delete(id);
+  markTransferCancelled(id);
 }
 
-function finalizeFile(transferId) {
-  const fileData = incomingFiles[transferId];
-  if (!fileData) return;
+function handleIncomingFileStart(data) {
+  const record = {
+    transferId: data.transferId,
+    name: data.name,
+    size: Number(data.size),
+    mime: data.mime || 'application/octet-stream',
+    totalChunks: Number(data.totalChunks),
+    receivedChunks: 0,
+    receivedBytes: 0,
+    startTs: performance.now(),
+    chunks: new Array(Number(data.totalChunks)),
+  };
 
-  const blob = new Blob(fileData.chunks);
+  incomingTransfers.set(data.transferId, record);
+  createTransferUI(data.transferId, data.name, data.size, 'incoming');
+}
+
+function handleIncomingFileChunk(data) {
+  const record = incomingTransfers.get(data.transferId);
+  if (!record) return;
+  if (record.chunks[data.index]) return;
+
+  record.chunks[data.index] = data.chunk;
+  record.receivedChunks += 1;
+  record.receivedBytes += data.chunk.byteLength;
+
+  const progress = (record.receivedBytes / record.size) * 100;
+  updateTransferProgress(data.transferId, progress, record.receivedBytes, record.size, record.startTs, 'Receiving');
+
+  // Send ACK every 32 chunks (matches web app)
+  if (record.receivedChunks % 32 === 0 || record.receivedChunks === record.totalChunks) {
+    if (conn && conn.open) {
+      conn.send({
+        type: 'file-ack',
+        transferId: data.transferId,
+        receivedChunks: record.receivedChunks,
+        receivedBytes: record.receivedBytes,
+      });
+    }
+  }
+}
+
+function handleIncomingFileEnd(data) {
+  const record = incomingTransfers.get(data.transferId);
+  if (!record) return;
+
+  if (record.receivedChunks !== record.totalChunks) {
+    console.warn('Transfer incomplete for', record.name);
+    return;
+  }
+
+  const chunks = [];
+  for (let i = 0; i < record.totalChunks; i++) {
+    if (!record.chunks[i]) {
+      console.warn('Missing chunk', i + 1);
+      return;
+    }
+    chunks.push(record.chunks[i]);
+  }
+
+  const blob = new Blob(chunks, { type: record.mime });
   const url = URL.createObjectURL(blob);
-  
-  // Update UI to show download link
-  const item = document.getElementById(`transfer-${transferId}`);
-  if (item) {
-    const info = item.querySelector('.transfer-info');
-    info.innerHTML += `<span>✅ Done</span>`;
-    const progressBar = item.querySelector('.progress-bar');
-    progressBar.style.width = '100%';
-    progressBar.classList.add('complete');
-    
-    // Auto-download or show link
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = item.dataset.filename;
-    a.click();
+
+  updateTransferProgress(data.transferId, 100, record.size, record.size, record.startTs, 'Received');
+  markTransferComplete(data.transferId, `Received (${formatBytes(record.size)})`);
+
+  // Add download button
+  addDownloadAction(data.transferId, url, record.name);
+
+  // Auto-download
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = record.name;
+  a.click();
+
+  incomingTransfers.delete(data.transferId);
+}
+
+function handleIncomingAck(data) {
+  const record = outgoingTransfers.get(data.transferId);
+  if (!record) return;
+
+  record.ackedBytes = data.receivedBytes;
+  const progress = (data.receivedBytes / record.size) * 100;
+  updateTransferProgress(data.transferId, progress, data.receivedBytes, record.size, record.startTs, 'Delivered');
+}
+
+// --- Send Files (compatible with web app protocol) ---
+
+async function waitForBufferSpace() {
+  const channel = conn && conn.dataChannel ? conn.dataChannel : null;
+  if (!channel) return;
+  while (channel.bufferedAmount > CHANNEL_BUFFER_LIMIT) {
+    await sleep(20);
   }
-  
-  delete incomingFiles[transferId];
 }
 
 async function sendFile(file) {
   if (!conn || !conn.open) return;
 
-  const transferId = Math.random().toString(36).substr(2, 9);
-  const chunkSize = 16384; // 16KB chunks
-  const totalChunks = Math.ceil(file.size / chunkSize);
+  const transferId = createTransferId();
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
-  createTransferUI(transferId, file.name, file.size, 'sending');
+  const record = {
+    id: transferId,
+    size: file.size,
+    sentBytes: 0,
+    ackedBytes: 0,
+    startTs: performance.now(),
+    totalChunks,
+  };
 
-  // Notify receiver
+  outgoingTransfers.set(transferId, record);
+  createTransferUI(transferId, file.name, file.size, 'outgoing');
+
   conn.send({
     type: 'file-start',
     transferId,
     name: file.name,
-    size: file.size
+    size: file.size,
+    mime: file.type || 'application/octet-stream',
+    totalChunks,
   });
 
   let offset = 0;
   for (let i = 0; i < totalChunks; i++) {
-    const chunk = await file.slice(offset, offset + chunkSize).arrayBuffer();
+    if (record.cancelled) {
+      markTransferCancelled(transferId);
+      return;
+    }
+
+    const end = Math.min(offset + CHUNK_SIZE, file.size);
+    const chunk = await file.slice(offset, end).arrayBuffer();
+
+    await waitForBufferSpace();
+
+    if (record.cancelled) {
+      markTransferCancelled(transferId);
+      return;
+    }
+
     conn.send({
       type: 'file-chunk',
       transferId,
-      chunk,
       index: i,
-      totalSize: file.size
+      chunk,
     });
-    offset += chunkSize;
-    
-    const progress = (offset / file.size) * 100;
-    updateTransferProgress(transferId, Math.min(progress, 100));
-    
-    // Small delay to prevent flooding the channel
-    if (i % 10 === 0) await new Promise(r => setTimeout(r, 10));
+
+    offset = end;
+    record.sentBytes = offset;
+
+    updateTransferProgress(transferId, (offset / file.size) * 100, offset, file.size, record.startTs, 'Sending');
+
+    if (i % 32 === 0) await sleep(0);
   }
 
-  conn.send({
-    type: 'file-end',
-    transferId
-  });
+  conn.send({ type: 'file-end', transferId });
+  markTransferComplete(transferId, `Sent (${formatBytes(file.size)})`);
 }
 
 // --- UI Helpers ---
@@ -201,69 +339,199 @@ function updateStatus(text, className) {
 }
 
 function showSection(section) {
-  [setupSection, hostingSection, shareSection].forEach(s => s.classList.add('hidden'));
+  [setupSection, hostingSection, shareSection].forEach(s => {
+    s.classList.add('hidden');
+    s.classList.remove('active');
+  });
   section.classList.remove('hidden');
   section.classList.add('active');
 }
 
 function resetToSetup() {
-  if (conn) conn.close();
+  if (conn) { try { conn.close(); } catch (e) {} }
   conn = null;
+  incomingTransfers.clear();
+  outgoingTransfers.clear();
+  transferList.innerHTML = '';
   showSection(setupSection);
   updateStatus('Disconnected', 'disconnected');
 }
 
-function createTransferUI(id, name, size, type) {
-  const div = document.createElement('div');
-  div.id = `transfer-${id}`;
-  div.className = 'transfer-item';
-  div.dataset.filename = name;
-  
-  const sizeStr = (size / (1024 * 1024)).toFixed(2) + ' MB';
-  
-  div.innerHTML = `
-    <div class="transfer-info">
-      <span>${type === 'sending' ? '⬆️' : '⬇️'} ${name}</span>
-      <span>${sizeStr}</span>
-    </div>
-    <div class="progress-container">
-      <div class="progress-bar"></div>
-    </div>
-  `;
-  
-  transferList.prepend(div);
+function cancelTransfer(id, direction) {
+  if (direction === 'outgoing') {
+    const record = outgoingTransfers.get(id);
+    if (record) {
+      record.cancelled = true;
+      outgoingTransfers.delete(id);
+    }
+  } else {
+    incomingTransfers.delete(id);
+  }
+  if (conn && conn.open) {
+    conn.send({ type: 'file-cancel', transferId: id });
+  }
+  markTransferCancelled(id);
 }
 
-function updateTransferProgress(id, progress) {
+function markTransferCancelled(id) {
+  const bar = document.getElementById(`progress-${id}`);
+  const status = document.getElementById(`status-${id}`);
+  const speed = document.getElementById(`speed-${id}`);
+  const cancelBtn = document.getElementById(`cancel-${id}`);
+
+  if (bar) { bar.style.background = 'var(--danger)'; bar.style.width = '100%'; }
+  if (status) status.textContent = 'Cancelled';
+  if (speed) speed.textContent = '—';
+  if (cancelBtn) cancelBtn.remove();
+}
+
+function createTransferUI(id, name, size, direction) {
+  if (document.getElementById(`transfer-${id}`)) return;
+
+  const wrapper = document.createElement('article');
+  wrapper.id = `transfer-${id}`;
+  wrapper.className = 'transfer-item';
+
+  const head = document.createElement('div');
+  head.className = 'transfer-head';
+
+  const title = document.createElement('span');
+  title.className = 'transfer-name';
+  title.textContent = `${direction === 'outgoing' ? 'Sending' : 'Receiving'} — ${name}`;
+
+  const headRight = document.createElement('div');
+  headRight.className = 'transfer-head-right';
+
+  const sizeLabel = document.createElement('span');
+  sizeLabel.className = 'transfer-meta';
+  sizeLabel.textContent = formatBytes(size);
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn-cancel';
+  cancelBtn.id = `cancel-${id}`;
+  cancelBtn.title = 'Cancel';
+  cancelBtn.innerHTML = '✕';
+  cancelBtn.addEventListener('click', () => cancelTransfer(id, direction));
+
+  headRight.appendChild(sizeLabel);
+  headRight.appendChild(cancelBtn);
+
+  head.appendChild(title);
+  head.appendChild(headRight);
+
+  const progressWrap = document.createElement('div');
+  progressWrap.className = 'progress-wrap';
+
+  const progressBar = document.createElement('div');
+  progressBar.className = 'progress-bar';
+  progressBar.id = `progress-${id}`;
+
+  progressWrap.appendChild(progressBar);
+
+  const foot = document.createElement('div');
+  foot.className = 'transfer-foot';
+
+  const status = document.createElement('span');
+  status.className = 'transfer-status';
+  status.id = `status-${id}`;
+  status.textContent = '0%';
+
+  const speed = document.createElement('span');
+  speed.className = 'transfer-speed';
+  speed.id = `speed-${id}`;
+  speed.textContent = '—';
+
+  foot.appendChild(status);
+  foot.appendChild(speed);
+
+  wrapper.appendChild(head);
+  wrapper.appendChild(progressWrap);
+  wrapper.appendChild(foot);
+
+  transferList.prepend(wrapper);
+}
+
+function updateTransferProgress(id, progress, transferred, total, startTs, label) {
+  const bar = document.getElementById(`progress-${id}`);
+  const status = document.getElementById(`status-${id}`);
+  const speed = document.getElementById(`speed-${id}`);
+
+  if (!bar || !status || !speed) return;
+
+  const clamped = Math.max(0, Math.min(progress, 100));
+  bar.style.width = `${clamped.toFixed(1)}%`;
+  status.textContent = `${label} ${clamped.toFixed(1)}% (${formatBytes(transferred)} / ${formatBytes(total)})`;
+  speed.textContent = formatSpeed(transferred, startTs);
+}
+
+function markTransferComplete(id, text) {
+  const bar = document.getElementById(`progress-${id}`);
+  const status = document.getElementById(`status-${id}`);
+  const speed = document.getElementById(`speed-${id}`);
+
+  if (bar) bar.classList.add('complete');
+  if (status) status.textContent = text;
+  if (speed) speed.textContent = 'Complete';
+}
+
+function addDownloadAction(id, url, fileName) {
   const item = document.getElementById(`transfer-${id}`);
-  if (item) {
-    const bar = item.querySelector('.progress-bar');
-    bar.style.width = `${progress}%`;
-  }
+  if (!item || item.querySelector('[data-download]')) return;
+
+  const button = document.createElement('button');
+  button.className = 'btn btn-secondary btn-sm';
+  button.dataset.download = '1';
+  button.style.marginTop = '8px';
+  button.textContent = 'Save File';
+
+  button.addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+  });
+
+  item.appendChild(button);
 }
 
 // --- Event Listeners ---
 
 document.getElementById('btn-host').addEventListener('click', () => {
-  const randomId = Math.floor(100000 + Math.random() * 900000).toString();
-  initPeer(randomId);
+  initPeer();
   showSection(hostingSection);
 });
 
 document.getElementById('btn-join').addEventListener('click', () => {
   const id = joinIdInput.value.trim();
   if (!id) return;
-  
+
+  if (!/^\d{6}$/.test(id)) {
+    alert('Please enter a valid 6-digit room code.');
+    return;
+  }
+
   initPeer();
   peer.on('open', () => {
-    const connection = peer.connect(id);
+    const connection = peer.connect(id, { reliable: true });
     setupConnection(connection);
   });
 });
 
+joinIdInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    document.getElementById('btn-join').click();
+  }
+});
+
 document.getElementById('btn-copy-id').addEventListener('click', () => {
-  navigator.clipboard.writeText(myId);
-  alert('Code copied to clipboard!');
+  if (myId) {
+    navigator.clipboard.writeText(myId).then(() => {
+      const btn = document.getElementById('btn-copy-id');
+      btn.style.background = 'rgba(13, 140, 87, 0.2)';
+      setTimeout(() => { btn.style.background = ''; }, 800);
+    });
+  }
 });
 
 document.getElementById('btn-cancel-host').addEventListener('click', () => {
@@ -272,6 +540,7 @@ document.getElementById('btn-cancel-host').addEventListener('click', () => {
 });
 
 document.getElementById('btn-disconnect').addEventListener('click', () => {
+  if (peer) peer.destroy();
   resetToSetup();
 });
 
@@ -288,22 +557,74 @@ dropZone.addEventListener('dragleave', () => {
 dropZone.addEventListener('drop', (e) => {
   e.preventDefault();
   dropZone.classList.remove('dragging');
-  const files = e.dataTransfer.files;
-  handleFiles(files);
+  handleFiles(e.dataTransfer.files, e.dataTransfer.items);
 });
 
-dropZone.addEventListener('click', () => {
+dropZone.addEventListener('click', (e) => {
+  if (e.target.tagName !== 'BUTTON') {
+    fileInput.click();
+  }
+});
+
+btnPickFiles.addEventListener('click', (e) => {
+  e.stopPropagation();
   fileInput.click();
+});
+
+btnPickFolder.addEventListener('click', (e) => {
+  e.stopPropagation();
+  folderInput.click();
 });
 
 fileInput.addEventListener('change', () => {
   handleFiles(fileInput.files);
+  fileInput.value = '';
 });
 
-function handleFiles(files) {
+folderInput.addEventListener('change', () => {
+  handleFiles(folderInput.files);
+  folderInput.value = '';
+});
+
+// --- File Handling ---
+
+async function handleFiles(files, items) {
   if (!conn || !conn.open) {
     alert('Connect to a peer first!');
     return;
   }
-  Array.from(files).forEach(sendFile);
+
+  if (items && items.length > 0) {
+    const allFiles = [];
+    for (const item of items) {
+      const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      if (entry) {
+        await getFilesFromEntry(entry, allFiles);
+      }
+    }
+    if (allFiles.length > 0) {
+      for (const f of allFiles) {
+        await sendFile(f);
+      }
+      return;
+    }
+  }
+
+  for (const file of Array.from(files)) {
+    if (file.size === 0 && !file.type) continue;
+    await sendFile(file);
+  }
+}
+
+async function getFilesFromEntry(entry, fileList) {
+  if (entry.isFile) {
+    const file = await new Promise((resolve) => entry.file(resolve));
+    fileList.push(file);
+  } else if (entry.isDirectory) {
+    const dirReader = entry.createReader();
+    const entries = await new Promise((resolve) => dirReader.readEntries(resolve));
+    for (const e of entries) {
+      await getFilesFromEntry(e, fileList);
+    }
+  }
 }

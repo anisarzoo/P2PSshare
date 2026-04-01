@@ -1,4 +1,4 @@
-﻿const http = require('http');
+const http = require('http');
 const express = require('express');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -47,7 +47,7 @@ app.use((req, res, next) => {
 app.get('/health', (_req, res) => {
   res.json({
     ok: true,
-    service: 'p2pshare-signal-server',
+    service: 'connectvia-signal-server',
     peerPath: PEER_PATH,
     timestamp: new Date().toISOString(),
   });
@@ -72,7 +72,7 @@ peerServer.on('disconnect', (client) => {
 app.use(PEER_PATH, peerServer);
 
 server.listen(PORT, HOST, () => {
-  console.log(`P2PShare signaling server listening on http://${HOST}:${PORT}${PEER_PATH}`);
+  console.log(`ConnectVia signaling server listening on http://${HOST}:${PORT}${PEER_PATH}`);
 });
 
 function normalizePath(value) {

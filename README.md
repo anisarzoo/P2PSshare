@@ -1,6 +1,6 @@
-﻿# P2PShare
+# ConnectVia
 
-Production-ready baseline for cross-device file sharing:
+Cross-platform P2P file sharing — production-ready baseline:
 - Offline on local Wi-Fi (via local signaling server)
 - Online P2P sharing (QR + room code)
 - Native bridge hooks for Bluetooth, NFC, and location-assisted pairing

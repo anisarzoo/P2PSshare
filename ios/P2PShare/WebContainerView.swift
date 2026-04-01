@@ -1,4 +1,4 @@
-﻿import SwiftUI
+import SwiftUI
 import WebKit
 
 struct WebContainerView: UIViewRepresentable {
@@ -37,7 +37,7 @@ struct WebContainerView: UIViewRepresentable {
 
         if let localUrl = Bundle.main.url(forResource: "index", withExtension: "html") {
             webView.loadFileURL(localUrl, allowingReadAccessTo: localUrl.deletingLastPathComponent())
-        } else if let remoteUrl = URL(string: "https://p2pshare.example.com") {
+        } else if let remoteUrl = URL(string: "https://connectvia.netlify.app") {
             webView.load(URLRequest(url: remoteUrl))
         }
 

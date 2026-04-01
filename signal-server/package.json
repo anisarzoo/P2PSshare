@@ -1,5 +1,5 @@
-﻿{
-  "name": "p2pshare-signal-server",
+{
+  "name": "connectvia-signal-server",
   "version": "1.0.0",
   "private": true,
   "type": "commonjs",
