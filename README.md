@@ -1,16 +1,18 @@
 # ConnectVia
 
-Cross-platform P2P file sharing — production-ready baseline:
+Cross-platform P2P file sharing baseline:
 - Offline on local Wi-Fi (via local signaling server)
 - Online P2P sharing (QR + room code)
-- Native bridge hooks for Bluetooth, NFC, and location-assisted pairing
+- Native bridge hooks for Bluetooth/NFC/location pairing
+- Native discovery stack: BLE + Nearby (Bluetooth/Wi-Fi) + location hints
+- TURN configuration support for strict NAT/mobile networks
 
 ## Folders
-- `web/` - upgraded responsive PWA transfer client.
-- `android/` - Android native wrapper + JS bridge.
-- `ios/` - iOS SwiftUI + WKWebView wrapper + JS bridge.
-- `windows/` - Windows WPF + WebView2 wrapper + JS bridge.
-- `signal-server/` - local/offline signaling service for LAN transfers.
+- `web/` - responsive PWA transfer client.
+- `android/` - Android wrapper + JS bridge + foreground transfer service skeleton.
+- `ios/` - iOS wrapper + JS bridge.
+- `windows/` - Windows wrapper + JS bridge.
+- `signal-server/` - always-on signaling service.
 - `scripts/` - helper scripts (asset sync).
 - `docs/` - production checklist.
 
@@ -20,6 +22,12 @@ Cross-platform P2P file sharing — production-ready baseline:
 3. Create room on one side.
 4. Join by QR or 6-digit code on the other side.
 5. Drop files and transfer.
+
+## Netlify deployment model
+- Host `web/` on Netlify.
+- Host `signal-server/` on a persistent Node service.
+- Configure `Signaling Host/Port/Path` in app settings.
+- Configure STUN/TURN in app settings for distant NAT traversal.
 
 ## Offline Wi-Fi mode
 1. Run signaling server:
@@ -36,6 +44,6 @@ Cross-platform P2P file sharing — production-ready baseline:
 - `powershell -ExecutionPolicy Bypass -File scripts/sync-web-assets.ps1`
 
 ## Notes on compatibility
-- Web mode: best for fast cross-platform sharing with QR/code.
-- Android/iOS/Windows wrappers: expose native bridge for Bluetooth/NFC/location flows.
-- Native pairing internals are scaffolded and should be wired to full production device APIs for your final release policy.
+- Browser mode: use WebRTC + signaling only.
+- Native app mode: enables bridge actions, BLE/Nearby pairing, runtime permissions, and foreground transfer service flow.
+- Native pairing internals are still scaffolded and should be replaced with production BLE/Nearby/NFC logic.

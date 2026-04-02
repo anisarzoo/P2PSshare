@@ -3,12 +3,19 @@ const DEFAULT_CONFIG = {
   signalingPort: '',
   signalingPath: '/peerjs',
   signalingSecure: true,
+  iceStunUrl: 'stun:stun.l.google.com:19302',
+  iceTurnUrls: '',
+  iceTurnUsername: '',
+  iceTurnCredential: '',
   chunkSize: 65536,
   ackEvery: 32,
 };
 
 const STORAGE_KEY = 'connectvia_config_v2';
 const CHANNEL_BUFFER_LIMIT = 2 * 1024 * 1024;
+const CONNECTION_TIMEOUT = 15000;
+const RECONNECT_MAX_ATTEMPTS = 3;
+const RECONNECT_DELAY = 2000;
 
 const state = {
   peer: null,
@@ -21,6 +28,10 @@ const state = {
   incomingTransfers: new Map(),
   outgoingTransfers: new Map(),
   scannerActive: false,
+  connectionTimer: null,
+  reconnectAttempts: 0,
+  wasHosting: false,
+  lastRoomId: null,
 };
 
 const elements = {
@@ -48,9 +59,17 @@ const elements = {
   signalPort: document.getElementById('signal-port'),
   signalPath: document.getElementById('signal-path'),
   signalSecure: document.getElementById('signal-secure'),
+  iceStunUrl: document.getElementById('ice-stun-url'),
+  iceTurnUrls: document.getElementById('ice-turn-urls'),
+  iceTurnUsername: document.getElementById('ice-turn-username'),
+  iceTurnCredential: document.getElementById('ice-turn-credential'),
   chunkSize: document.getElementById('chunk-size'),
   ackEvery: document.getElementById('ack-every'),
+  capabilityNote: document.getElementById('capability-note'),
+  capabilityGrid: document.getElementById('capability-grid'),
+  nativeActions: document.getElementById('native-actions'),
   capWebrtc: document.getElementById('cap-webrtc'),
+  capWifi: document.getElementById('cap-wifi'),
   capBluetooth: document.getElementById('cap-bluetooth'),
   capNfc: document.getElementById('cap-nfc'),
   capLocation: document.getElementById('cap-location'),
@@ -65,6 +84,10 @@ function loadConfig() {
     return {
       ...DEFAULT_CONFIG,
       ...parsed,
+      iceStunUrl: String(parsed.iceStunUrl || DEFAULT_CONFIG.iceStunUrl).trim(),
+      iceTurnUrls: String(parsed.iceTurnUrls || DEFAULT_CONFIG.iceTurnUrls).trim(),
+      iceTurnUsername: String(parsed.iceTurnUsername || DEFAULT_CONFIG.iceTurnUsername).trim(),
+      iceTurnCredential: String(parsed.iceTurnCredential || DEFAULT_CONFIG.iceTurnCredential),
       chunkSize: Number(parsed.chunkSize || DEFAULT_CONFIG.chunkSize),
       ackEvery: Number(parsed.ackEvery || DEFAULT_CONFIG.ackEvery),
     };
@@ -83,6 +106,10 @@ function applyConfigToUI() {
   elements.signalPort.value = state.config.signalingPort;
   elements.signalPath.value = state.config.signalingPath;
   elements.signalSecure.checked = Boolean(state.config.signalingSecure);
+  elements.iceStunUrl.value = state.config.iceStunUrl;
+  elements.iceTurnUrls.value = state.config.iceTurnUrls;
+  elements.iceTurnUsername.value = state.config.iceTurnUsername;
+  elements.iceTurnCredential.value = state.config.iceTurnCredential;
   elements.chunkSize.value = String(state.config.chunkSize);
   elements.ackEvery.value = String(state.config.ackEvery);
 }
@@ -93,6 +120,10 @@ function readConfigFromUI() {
   state.config.signalingPort = elements.signalPort.value.trim();
   state.config.signalingPath = pathRaw.startsWith('/') ? pathRaw : `/${pathRaw}`;
   state.config.signalingSecure = elements.signalSecure.checked;
+  state.config.iceStunUrl = elements.iceStunUrl.value.trim();
+  state.config.iceTurnUrls = elements.iceTurnUrls.value.trim();
+  state.config.iceTurnUsername = elements.iceTurnUsername.value.trim();
+  state.config.iceTurnCredential = elements.iceTurnCredential.value;
   state.config.chunkSize = Number(elements.chunkSize.value);
   state.config.ackEvery = Number(elements.ackEvery.value);
 }
@@ -107,7 +138,42 @@ function buildPeerOptions() {
     options.secure = Boolean(state.config.signalingSecure);
   }
 
+  const iceConfig = buildIceConfig();
+  if (iceConfig) {
+    options.config = iceConfig;
+  }
+
   return options;
+}
+
+function parseCsvList(rawValue) {
+  return String(rawValue || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildIceConfig() {
+  const iceServers = [];
+  const stunUrl = String(state.config.iceStunUrl || '').trim();
+  const turnUrls = parseCsvList(state.config.iceTurnUrls);
+
+  if (stunUrl) {
+    iceServers.push({ urls: stunUrl });
+  }
+
+  if (turnUrls.length > 0) {
+    const turnServer = { urls: turnUrls.length === 1 ? turnUrls[0] : turnUrls };
+    if (state.config.iceTurnUsername) {
+      turnServer.username = state.config.iceTurnUsername;
+    }
+    if (state.config.iceTurnCredential) {
+      turnServer.credential = state.config.iceTurnCredential;
+    }
+    iceServers.push(turnServer);
+  }
+
+  return iceServers.length ? { iceServers } : null;
 }
 
 function updateTransportBadge() {
@@ -196,12 +262,31 @@ function setCapabilityChip(element, label, supported, detail) {
   element.textContent = `${label}: ${detail}`;
 }
 
+function setElementHidden(element, hidden) {
+  if (!element) return;
+  element.classList.toggle('hidden', hidden);
+}
+
 function detectCapabilities() {
+  const nativeMode = hasNativeBridge();
+
   setCapabilityChip(elements.capWebrtc, 'WebRTC', Boolean(window.RTCPeerConnection), window.RTCPeerConnection ? 'supported' : 'missing');
-  setCapabilityChip(elements.capBluetooth, 'Bluetooth', Boolean(navigator.bluetooth), navigator.bluetooth ? 'supported' : 'native app preferred');
-  setCapabilityChip(elements.capNfc, 'NFC', Boolean(window.NDEFReader), window.NDEFReader ? 'supported' : 'native app preferred');
-  setCapabilityChip(elements.capLocation, 'Location', Boolean(navigator.geolocation), navigator.geolocation ? 'supported' : 'not available');
-  setCapabilityChip(elements.capNative, 'Native Bridge', hasNativeBridge(), hasNativeBridge() ? 'available' : 'web mode');
+  setCapabilityChip(elements.capWifi, 'Wi-Fi', nativeMode, nativeMode ? 'native app available' : 'native app required');
+  setCapabilityChip(elements.capBluetooth, 'Bluetooth', nativeMode, nativeMode ? 'native app available' : 'native app required');
+  setCapabilityChip(elements.capNfc, 'NFC', nativeMode, nativeMode ? 'native app available' : 'native app required');
+  setCapabilityChip(elements.capLocation, 'Location', nativeMode, nativeMode ? 'native app available' : 'native app required');
+  setCapabilityChip(elements.capNative, 'Native Bridge', nativeMode, nativeMode ? 'app mode' : 'web mode');
+
+  if (nativeMode) {
+    elements.capabilityNote.textContent = 'Native app mode detected. Pairing helpers and hardware permissions are enabled here.';
+    setElementHidden(elements.capabilityGrid, false);
+    setElementHidden(elements.nativeActions, false);
+    return;
+  }
+
+  elements.capabilityNote.textContent = 'Browser mode detected. Use the Android app for Bluetooth/NFC pairing, background transfers, and OS-level permissions.';
+  setElementHidden(elements.capabilityGrid, true);
+  setElementHidden(elements.nativeActions, true);
 }
 
 function copyText(text, label) {
@@ -230,38 +315,44 @@ function copyText(text, label) {
   document.body.removeChild(input);
 }
 
-function invokeNativeAction(action) {
+function invokeNativeAction(action, payload = {}, options = {}) {
+  const silentIfUnavailable = Boolean(options.silentIfUnavailable);
+  const hasPayload = payload && typeof payload === 'object' && Object.keys(payload).length > 0;
+
   try {
-    if (window.NativeP2PBridge && typeof window.NativeP2PBridge[action] === 'function') {
+    if (!hasPayload && window.NativeP2PBridge && typeof window.NativeP2PBridge[action] === 'function') {
       window.NativeP2PBridge[action]();
       logActivity(`Native action requested: ${action}`);
-      return;
+      return true;
     }
 
     if (window.NativeP2PBridge && typeof window.NativeP2PBridge.postMessage === 'function') {
-      window.NativeP2PBridge.postMessage(JSON.stringify({ action }));
+      window.NativeP2PBridge.postMessage(JSON.stringify({ action, ...payload }));
       logActivity(`Native bridge postMessage requested: ${action}`);
-      return;
+      return true;
     }
 
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.NativeP2PBridge) {
-      window.webkit.messageHandlers.NativeP2PBridge.postMessage({ action });
+      window.webkit.messageHandlers.NativeP2PBridge.postMessage({ action, ...payload });
       logActivity(`iOS bridge action requested: ${action}`);
-      return;
+      return true;
     }
 
     if (window.chrome && window.chrome.webview) {
-      window.chrome.webview.postMessage({ action });
+      window.chrome.webview.postMessage({ action, ...payload });
       logActivity(`Windows bridge action requested: ${action}`);
-      return;
+      return true;
     }
   } catch (error) {
     console.error(error);
     logActivity(`Native action failed: ${action}`, 'Warning');
-    return;
+    return false;
   }
 
-  logActivity(`Native bridge unavailable for action: ${action}`, 'Warning');
+  if (!silentIfUnavailable) {
+    logActivity(`Native bridge unavailable for action: ${action}`, 'Warning');
+  }
+  return false;
 }
 
 window.handleNativeBridgeMessage = function handleNativeBridgeMessage(payload) {
@@ -288,6 +379,17 @@ window.handleNativeBridgeMessage = function handleNativeBridgeMessage(payload) {
   if (data.type === 'location-room-hint' && data.code) {
     elements.joinIdInput.value = String(data.code).trim();
     logActivity('Location-assisted room suggestion received.');
+    return;
+  }
+
+  if (data.type === 'permissions-requested') {
+    logActivity(`Native permissions requested for ${data.reason || 'transfer'}.`);
+    return;
+  }
+
+  if (data.type === 'permissions-denied') {
+    const denied = String(data.permissions || '').trim();
+    logActivity(`Permissions denied${denied ? `: ${denied}` : ''}.`, 'Warning');
     return;
   }
 
@@ -324,11 +426,23 @@ function initPeer(preferredId = undefined) {
 
   state.peer.on('open', (id) => {
     state.myId = id;
+    state.reconnectAttempts = 0;
     elements.myPeerId.textContent = id;
     generateQRCode(id);
 
-    if (state.pendingJoinId) {
-      const target = state.pendingJoinId;
+    const joiningTarget = state.pendingJoinId;
+    invokeNativeAction(
+      'setRoomContext',
+      {
+        roomCode: id,
+        role: joiningTarget ? 'joiner' : 'host',
+        targetRoom: joiningTarget || '',
+      },
+      { silentIfUnavailable: true },
+    );
+
+    if (joiningTarget) {
+      const target = joiningTarget;
       state.pendingJoinId = null;
       logActivity(`Connecting to room ${target}.`);
       const outgoing = state.peer.connect(target, { reliable: true });
@@ -337,6 +451,8 @@ function initPeer(preferredId = undefined) {
       return;
     }
 
+    state.wasHosting = true;
+    state.lastRoomId = id;
     updateStatus('Waiting', 'waiting');
     logActivity(`Room ${id} is online and waiting.`);
   });
@@ -353,6 +469,12 @@ function initPeer(preferredId = undefined) {
 
   state.peer.on('error', (error) => {
     handlePeerError(error);
+  });
+
+  state.peer.on('disconnected', () => {
+    logActivity('Signaling connection lost. Attempting to reconnect...', 'Warning');
+    updateStatus('Reconnecting', 'waiting');
+    attemptReconnect();
   });
 
   state.peer.on('close', () => {
@@ -375,9 +497,36 @@ function handlePeerError(error) {
   resetToSetup({ destroyPeer: true });
 }
 
+function attemptReconnect() {
+  if (!state.peer || state.peer.destroyed) {
+    logActivity('Peer was destroyed. Cannot reconnect.', 'Warning');
+    return;
+  }
+
+  if (state.reconnectAttempts >= RECONNECT_MAX_ATTEMPTS) {
+    logActivity(`Reconnection failed after ${RECONNECT_MAX_ATTEMPTS} attempts.`, 'Warning');
+    if (!state.conn || !state.conn.open) {
+      resetToSetup({ destroyPeer: true });
+    }
+    return;
+  }
+
+  state.reconnectAttempts += 1;
+  logActivity(`Reconnect attempt ${state.reconnectAttempts}/${RECONNECT_MAX_ATTEMPTS}...`);
+
+  try {
+    state.peer.reconnect();
+  } catch (error) {
+    console.warn('Reconnect call failed:', error);
+    setTimeout(() => attemptReconnect(), RECONNECT_DELAY);
+  }
+}
+
 function hostRoom() {
   const roomId = generateRoomCode();
   state.pendingJoinId = null;
+  state.wasHosting = true;
+  state.lastRoomId = roomId;
   showSection(elements.hostingSection);
   updateStatus('Creating room', 'waiting');
   logActivity(`Creating room ${roomId}.`);
@@ -401,11 +550,26 @@ function joinRoom(inputRoomId) {
 function setupConnection(connection, sourceLabel) {
   state.conn = connection;
 
+  // Start connection timeout — if 'open' doesn't fire in time, abort
+  clearTimeout(state.connectionTimer);
+  state.connectionTimer = setTimeout(() => {
+    if (!connection.open) {
+      logActivity('Connection timed out. The room may no longer be available.', 'Warning');
+      try { connection.close(); } catch (e) {}
+      state.conn = null;
+      alert('Connection timed out. The host may have closed their browser or the room expired. Please ask them to create a new room.');
+      resetToSetup({ destroyPeer: true });
+    }
+  }, CONNECTION_TIMEOUT);
+
   connection.on('open', () => {
+    clearTimeout(state.connectionTimer);
+    state.connectionTimer = null;
     showSection(elements.shareSection);
     elements.remotePeerId.textContent = connection.peer;
     updateStatus('Connected', 'connected');
     logActivity(`${sourceLabel} connection open with ${connection.peer}.`);
+    invokeNativeAction('startTransferService', {}, { silentIfUnavailable: true });
     announceCapabilities();
   });
 
@@ -414,13 +578,17 @@ function setupConnection(connection, sourceLabel) {
   });
 
   connection.on('close', () => {
+    clearTimeout(state.connectionTimer);
     logActivity('Peer disconnected.');
+    invokeNativeAction('stopTransferService', {}, { silentIfUnavailable: true });
     resetToSetup({ destroyPeer: true });
   });
 
   connection.on('error', (error) => {
+    clearTimeout(state.connectionTimer);
     console.error('Data connection error:', error);
     logActivity('Data connection error.', 'Warning');
+    invokeNativeAction('stopTransferService', {}, { silentIfUnavailable: true });
     resetToSetup({ destroyPeer: true });
   });
 }
@@ -445,6 +613,10 @@ function resetToSetup(options = {}) {
   state.isResetting = true;
 
   try {
+    invokeNativeAction('stopTransferService', {}, { silentIfUnavailable: true });
+    invokeNativeAction('stopPairing', {}, { silentIfUnavailable: true });
+    invokeNativeAction('setRoomContext', { roomCode: '', role: 'idle', targetRoom: '' }, { silentIfUnavailable: true });
+
     if (state.conn) {
       const active = state.conn;
       state.conn = null;
@@ -559,6 +731,10 @@ function cancelTransfer(id, direction) {
       state.outgoingTransfers.delete(id);
     }
   } else {
+    const record = state.incomingTransfers.get(id);
+    if (record) {
+      record.cancelled = true;
+    }
     state.incomingTransfers.delete(id);
   }
 
@@ -658,6 +834,21 @@ function handleIncomingData(payload) {
 
 function handleIncomingCancel(payload) {
   const id = payload.transferId;
+
+  // CRITICAL: Set cancelled flag on the record object BEFORE deleting.
+  // The sendFile() loop holds a local reference to this object and checks
+  // record.cancelled — if we only delete from the Map without setting the
+  // flag, the loop's reference still sees cancelled === undefined and
+  // keeps pumping chunks.
+  const outRecord = state.outgoingTransfers.get(id);
+  if (outRecord) {
+    outRecord.cancelled = true;
+  }
+  const inRecord = state.incomingTransfers.get(id);
+  if (inRecord) {
+    inRecord.cancelled = true;
+  }
+
   state.incomingTransfers.delete(id);
   state.outgoingTransfers.delete(id);
   markTransferCancelled(id);
@@ -684,7 +875,7 @@ function handleIncomingFileStart(payload) {
 
 function handleIncomingFileChunk(payload) {
   const record = state.incomingTransfers.get(payload.transferId);
-  if (!record) return;
+  if (!record || record.cancelled) return;
 
   if (record.chunks[payload.index]) {
     return;
@@ -1057,6 +1248,7 @@ function bindEvents() {
   document.getElementById('btn-save-config').addEventListener('click', saveAdvancedConfig);
   document.getElementById('btn-send-note').addEventListener('click', queueNote);
 
+  document.getElementById('btn-native-wifi').addEventListener('click', () => invokeNativeAction('startWifiPairing'));
   document.getElementById('btn-native-bluetooth').addEventListener('click', () => invokeNativeAction('startBluetoothPairing'));
   document.getElementById('btn-native-nfc').addEventListener('click', () => invokeNativeAction('startNfcPairing'));
   document.getElementById('btn-native-location').addEventListener('click', () => invokeNativeAction('startLocationPairing'));
@@ -1132,6 +1324,19 @@ function initialize() {
   detectCapabilities();
   bindEvents();
   registerServiceWorker();
+
+  // Mobile tab suspension resilience: when user returns from WhatsApp etc.,
+  // check if the peer is still alive and reconnect if needed
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+
+    if (state.peer && !state.peer.destroyed && state.peer.disconnected) {
+      logActivity('Tab resumed. Reconnecting to signaling server...', 'System');
+      updateStatus('Reconnecting', 'waiting');
+      state.reconnectAttempts = 0;
+      attemptReconnect();
+    }
+  });
 
   const roomIdFromUrl = extractRoomId(window.location.href);
   if (roomIdFromUrl) {

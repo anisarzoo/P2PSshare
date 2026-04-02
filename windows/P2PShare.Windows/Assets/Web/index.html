@@ -63,6 +63,22 @@
               <span>Path</span>
               <input id="signal-path" type="text" value="/peerjs">
             </label>
+            <label class="field field-span-2">
+              <span>STUN URL</span>
+              <input id="ice-stun-url" type="text" value="stun:stun.l.google.com:19302">
+            </label>
+            <label class="field field-span-2">
+              <span>TURN URLs (comma separated)</span>
+              <input id="ice-turn-urls" type="text" placeholder="turn:turn.example.com:3478?transport=udp,turns:turn.example.com:5349">
+            </label>
+            <label class="field">
+              <span>TURN Username</span>
+              <input id="ice-turn-username" type="text" placeholder="turn-user">
+            </label>
+            <label class="field">
+              <span>TURN Credential</span>
+              <input id="ice-turn-credential" type="password" placeholder="turn-password">
+            </label>
             <label class="field">
               <span>Chunk Size</span>
               <select id="chunk-size">
@@ -89,15 +105,18 @@
         </div>
 
         <div class="capabilities">
-          <h3>Pairing and Device Capabilities</h3>
-          <div class="capability-grid">
+          <h3>Native App Features</h3>
+          <p id="capability-note" class="capability-note"></p>
+          <div id="capability-grid" class="capability-grid">
             <span id="cap-webrtc" class="capability-chip">WebRTC: checking</span>
+            <span id="cap-wifi" class="capability-chip">Wi-Fi: checking</span>
             <span id="cap-bluetooth" class="capability-chip">Bluetooth: checking</span>
             <span id="cap-nfc" class="capability-chip">NFC: checking</span>
             <span id="cap-location" class="capability-chip">Location: checking</span>
             <span id="cap-native" class="capability-chip">Native Bridge: checking</span>
           </div>
-          <div class="native-actions">
+          <div id="native-actions" class="native-actions">
+            <button id="btn-native-wifi" class="btn btn-ghost" type="button">Pair via Wi-Fi</button>
             <button id="btn-native-bluetooth" class="btn btn-ghost" type="button">Pair via Bluetooth</button>
             <button id="btn-native-nfc" class="btn btn-ghost" type="button">Pair via NFC</button>
             <button id="btn-native-location" class="btn btn-ghost" type="button">Pair via Location</button>
@@ -107,7 +126,7 @@
 
       <section id="hosting-section" class="panel hidden">
         <h2>Room Ready</h2>
-        <p class="subtitle">Share this room code or QR. Remote device can join instantly.</p>
+        <p class="subtitle">Share this room code or QR. Keep this app open until the receiver connects.</p>
         <div class="code-display">
           <span id="my-peer-id" class="large-code">------</span>
         </div>

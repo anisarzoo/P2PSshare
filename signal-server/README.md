@@ -1,26 +1,41 @@
-﻿# Local Signaling Server
+# ConnectVia Signaling Server
 
-Use this service for **offline Wi-Fi sharing** when devices are on the same LAN and internet is unavailable.
+Use this service for:
+- Online room signaling with stable uptime.
+- Offline/LAN mode when internet is unavailable.
 
-## Start
-1. Install dependencies:
-   - `cd signal-server`
-   - `npm install`
-2. Run server:
-   - `npm run start`
+Netlify can host your static web app, but this signaling process must run on an always-on Node host (Render/Fly/Railway/VPS/etc.).
 
-## Configure web app
-Open advanced settings in web client and set:
-- Host: LAN IP of machine running this server (example `192.168.1.20`)
-- Port: `9000`
-- Path: `/peerjs`
-- Secure: off for plain LAN, on behind HTTPS reverse proxy
+## Start locally
+1. `cd signal-server`
+2. `npm install`
+3. Copy `.env.example` to `.env` and adjust values.
+4. `npm run start`
 
-## Health check
+Health checks:
 - `http://<host>:9000/health`
+- `http://<host>:9000/ready`
 
-## Production deployment
-- Put behind Nginx/Caddy with TLS.
-- Lock CORS to known origins.
-- Run process with PM2/systemd.
-- Enable log shipping and alerting.
+## Required environment
+- `PORT`
+- `HOST`
+- `PEER_PATH`
+- `TRUST_PROXY`
+- `CORS_ORIGIN`
+
+## Production recommendations
+- Put server behind Nginx/Caddy/Traefik with TLS.
+- Set `TRUST_PROXY=true` behind reverse proxy.
+- Restrict `CORS_ORIGIN` to your exact app origins (comma-separated).
+- Keep `ALLOW_DISCOVERY=false` unless you explicitly need peer listing.
+- Monitor process and auto-restart (PM2/systemd/container orchestration).
+
+## Optional direct TLS
+You can run HTTPS directly in Node with:
+- `ENABLE_HTTPS=true`
+- `TLS_KEY_FILE=<path>`
+- `TLS_CERT_FILE=<path>`
+- `TLS_CA_FILE=<path>` (optional)
+
+Reverse-proxy TLS is still preferred for most deployments.
+

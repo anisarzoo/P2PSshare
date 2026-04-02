@@ -340,6 +340,10 @@ textarea {
   gap: 5px;
 }
 
+.field-span-2 {
+  grid-column: 1 / -1;
+}
+
 .field span {
   font-size: 0.8rem;
   color: var(--text-soft);
@@ -362,6 +366,13 @@ textarea {
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px dashed rgba(7, 69, 63, 0.18);
+}
+
+.capability-note {
+  margin: 6px 0 0;
+  color: var(--text-soft);
+  font-size: 0.86rem;
+  line-height: 1.35;
 }
 
 .capability-grid {

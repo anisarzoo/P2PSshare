@@ -1,6 +1,6 @@
 ﻿# Android App (Production Starter)
 
-This folder contains a native Android WebView wrapper for the upgraded P2PShare web client.
+This folder contains a native Android WebView wrapper for the upgraded ConnectVia web client.
 
 ## Why this structure
 - Native permissions for Bluetooth, NFC, camera, and location.
@@ -13,11 +13,24 @@ This folder contains a native Android WebView wrapper for the upgraded P2PShare 
 3. Sync Gradle and run on Android 7.0+ (API 24+).
 
 ## Native bridge actions
+- `setRoomContext`
+- `startWifiPairing`
 - `startBluetoothPairing`
 - `startNfcPairing`
 - `startLocationPairing`
+- `startTransferService`
+- `stopTransferService`
+- `stopPairing`
 
-The current `NativeBridge.kt` ships safe starter logic and callback plumbing.
+The current `NativeBridge.kt` now includes:
+- runtime permission request plumbing (`BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, location, notifications),
+- foreground transfer service triggers (`TransferForegroundService`),
+- BLE scanner/advertiser discovery,
+- Nearby Connections discovery/advertising (Bluetooth/Wi-Fi transport),
+- location + Wi-Fi fingerprint pairing hints for older-device fallback,
+- callback messages back to the web UI for permission and status events.
+
+It still ships safe starter pairing logic.
 Replace pairing internals with production BLE/Nearby/NFC flows per your hardware requirements.
 
 ## Security checklist

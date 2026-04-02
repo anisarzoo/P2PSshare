@@ -26,6 +26,8 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -35,6 +37,7 @@ body {
   -webkit-font-smoothing: antialiased;
   position: relative;
   overflow-x: hidden;
+  touch-action: pan-y;
 }
 
 ::-webkit-scrollbar {
@@ -337,6 +340,10 @@ textarea {
   gap: 5px;
 }
 
+.field-span-2 {
+  grid-column: 1 / -1;
+}
+
 .field span {
   font-size: 0.8rem;
   color: var(--text-soft);
@@ -359,6 +366,13 @@ textarea {
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px dashed rgba(7, 69, 63, 0.18);
+}
+
+.capability-note {
+  margin: 6px 0 0;
+  color: var(--text-soft);
+  font-size: 0.86rem;
+  line-height: 1.35;
 }
 
 .capability-grid {
@@ -525,6 +539,7 @@ textarea {
   padding: 12px;
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(7, 69, 63, 0.12);
+  overflow: hidden;
 }
 
 .transfer-head {
@@ -533,6 +548,8 @@ textarea {
   align-items: center;
   gap: 8px;
   font-size: 0.88rem;
+  width: 100%;
+  overflow: hidden;
 }
 
 .transfer-head-right {
@@ -544,7 +561,8 @@ textarea {
 
 .transfer-name {
   font-weight: 800;
-  max-width: 60%;
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -608,6 +626,20 @@ textarea {
   color: var(--text-soft);
   display: flex;
   justify-content: space-between;
+  gap: 8px;
+}
+
+.transfer-status {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transfer-speed {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .activity-log {
@@ -647,6 +679,8 @@ textarea {
 
 .modal-card {
   width: min(440px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   border-radius: var(--radius-lg);
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: rgba(7, 32, 30, 0.94);
@@ -761,7 +795,8 @@ footer {
   }
 
   .transfer-name {
-    max-width: 50%;
+    flex: 1;
+    min-width: 0;
     font-size: 0.82rem;
   }
 
@@ -835,6 +870,24 @@ footer {
 
   .drop-zone {
     padding: 14px 10px;
+  }
+}
+
+@media (max-width: 340px) {
+  .transfer-head {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  
+  .transfer-name {
+    flex: 1 1 100%;
+    margin-bottom: 4px;
+    font-size: 0.78rem;
+  }
+  
+  .transfer-head-right {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 
