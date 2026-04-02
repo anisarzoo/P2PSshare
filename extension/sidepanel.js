@@ -21,6 +21,15 @@ const btnPickFolder = document.getElementById('btn-pick-folder');
 // Web app URL for QR codes
 const WEB_APP_URL = "https://sharevia.netlify.app";
 
+// Signaling Config — matches web app
+const SIGNAL_CONFIG = {
+  host: 'sharevia-signal.onrender.com',
+  port: 443,
+  path: '/peerjs',
+  secure: true,
+  debug: 1
+};
+
 // Transfer config — matches web app
 const CHUNK_SIZE = 65536; // 64KB
 const CHANNEL_BUFFER_LIMIT = 2 * 1024 * 1024;
@@ -65,7 +74,7 @@ function initPeer(id = null) {
   if (peer) peer.destroy();
 
   const peerId = id || generateRoomCode();
-  peer = new Peer(peerId, { debug: 1 });
+  peer = new Peer(peerId, SIGNAL_CONFIG);
 
   peer.on('open', (openId) => {
     myId = openId;

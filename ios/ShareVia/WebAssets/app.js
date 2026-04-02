@@ -1,6 +1,6 @@
 const DEFAULT_CONFIG = {
-  signalingHost: '',
-  signalingPort: '',
+  signalingHost: 'sharevia-signal.onrender.com',
+  signalingPort: '443',
   signalingPath: '/peerjs',
   signalingSecure: true,
   iceStunUrl: 'stun:stun.l.google.com:19302',
