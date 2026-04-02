@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sharevia-v1';
+const CACHE_NAME = 'sharevia-v6';
 const CORE_ASSETS = [
   './',
   './index.html',

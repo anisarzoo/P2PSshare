@@ -11,6 +11,7 @@
 - Keep `chunkSize` at 64KB for mixed device compatibility.
 - Run signaling on an always-on host (separate from static Netlify hosting).
 - Use LAN signaling server for offline Wi-Fi mode.
+- Validate Offline Radar discovery behavior on mixed Android versions and OEM skins.
 - Monitor transfer logs and retry interrupted sends.
 - Keep background execution permissions configured for mobile.
 

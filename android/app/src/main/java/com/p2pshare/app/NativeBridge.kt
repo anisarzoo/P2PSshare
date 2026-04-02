@@ -1,6 +1,7 @@
 package com.ShareVia.app
 
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.nfc.NfcAdapter
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -13,21 +14,21 @@ class NativeBridge(
     private val bleRoomDiscoveryManager =
         BleRoomDiscoveryManager(
             activity.applicationContext,
-            ::handleRoomCodeDiscovery,
+            ::handleDiscoveryHint,
             ::sendInfo,
         )
 
     private val nearbyRoomDiscoveryManager =
         NearbyRoomDiscoveryManager(
             activity.applicationContext,
-            ::handleRoomCodeDiscovery,
+            ::handleDiscoveryHint,
             ::sendInfo,
         )
 
     private val locationPairingManager =
         LocationPairingManager(
             activity.applicationContext,
-            ::handleRoomCodeDiscovery,
+            ::handleDiscoveryHint,
             ::sendInfo,
         )
 
@@ -43,11 +44,14 @@ class NativeBridge(
             return
         }
 
-        val activeRoom = activePairingRoomCode()
-        bleRoomDiscoveryManager.start(activeRoom)
-        nearbyRoomDiscoveryManager.start(activeRoom)
-        sendPairingCode(activeRoom, source = "bluetooth")
-        sendInfo("Bluetooth + Nearby pairing started for room $activeRoom.")
+        val announcedRoom = if (role.equals("idle", ignoreCase = true)) null else activePairingRoomCode()
+        val discoveryRoom = announcedRoom ?: generateRoomCode()
+        bleRoomDiscoveryManager.start(discoveryRoom)
+        nearbyRoomDiscoveryManager.start(discoveryRoom)
+        if (announcedRoom != null) {
+            sendPairingCode(announcedRoom, source = "bluetooth")
+        }
+        sendInfo("Bluetooth + Nearby pairing started.")
     }
 
     @JavascriptInterface
@@ -56,11 +60,14 @@ class NativeBridge(
             return
         }
 
-        val activeRoom = activePairingRoomCode()
-        nearbyRoomDiscoveryManager.start(activeRoom)
-        locationPairingManager.start(activeRoom)
-        sendPairingCode(activeRoom, source = "wifi")
-        sendInfo("Wi-Fi/Nearby pairing started for room $activeRoom.")
+        val announcedRoom = if (role.equals("idle", ignoreCase = true)) null else activePairingRoomCode()
+        val discoveryRoom = announcedRoom ?: generateRoomCode()
+        nearbyRoomDiscoveryManager.start(discoveryRoom)
+        locationPairingManager.start(announcedRoom)
+        if (announcedRoom != null) {
+            sendPairingCode(announcedRoom, source = "wifi")
+        }
+        sendInfo("Wi-Fi/Nearby pairing started.")
     }
 
     @JavascriptInterface
@@ -80,8 +87,9 @@ class NativeBridge(
             return
         }
 
-        val activeRoom = activePairingRoomCode()
-        sendPairingCode(activeRoom, source = "nfc")
+        val announcedRoom = if (role.equals("idle", ignoreCase = true)) null else activePairingRoomCode()
+        val nfcRoom = announcedRoom ?: generateRoomCode().also { roomCode = it }
+        sendPairingCode(nfcRoom, source = "nfc")
         sendInfo("NFC pairing ready. Bring devices close and share room code if needed.")
     }
 
@@ -91,8 +99,8 @@ class NativeBridge(
             return
         }
 
-        val activeRoom = activePairingRoomCode()
-        locationPairingManager.start(activeRoom)
+        val announcedRoom = if (role.equals("idle", ignoreCase = true)) null else activePairingRoomCode()
+        locationPairingManager.start(announcedRoom)
         sendInfo("Location-assisted pairing started.")
     }
 
@@ -116,6 +124,7 @@ class NativeBridge(
     fun stopPairing() {
         bleRoomDiscoveryManager.stop()
         nearbyRoomDiscoveryManager.stop()
+        locationPairingManager.stop()
         sendInfo("Native pairing discovery stopped.")
     }
 
@@ -127,6 +136,27 @@ class NativeBridge(
 
         this.role = role?.ifBlank { "idle" } ?: "idle"
         this.targetRoomCode = normalizeRoomCode(targetRoom)
+    }
+
+    @JavascriptInterface
+    fun getNativeCapabilities() {
+        val packageManager = activity.packageManager
+        val nfcAdapter = NfcAdapter.getDefaultAdapter(activity)
+        val bluetoothSupported = packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)
+        val bluetoothLeSupported = packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
+        val wifiSupported = packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
+
+        val payload =
+            JSONObject()
+                .put("type", "native-capabilities")
+                .put("nfcSupported", nfcAdapter != null)
+                .put("nfcEnabled", nfcAdapter?.isEnabled ?: false)
+                .put("bluetoothSupported", bluetoothSupported)
+                .put("bluetoothLeSupported", bluetoothLeSupported)
+                .put("wifiSupported", wifiSupported)
+                .put("locationSupported", true)
+
+        dispatch(payload)
     }
 
     @JavascriptInterface
@@ -146,6 +176,7 @@ class NativeBridge(
             "startTransferService" -> startTransferService()
             "stopTransferService" -> stopTransferService()
             "stopPairing" -> stopPairing()
+            "getNativeCapabilities" -> getNativeCapabilities()
             "setRoomContext" -> {
                 setRoomContext(
                     roomCode = payload?.optString("roomCode"),
@@ -243,8 +274,24 @@ class NativeBridge(
         }
     }
 
-    private fun handleRoomCodeDiscovery(code: String, source: String) {
-        val normalized = normalizeRoomCode(code) ?: return
+    private fun handleDiscoveryHint(hint: NativeDiscoveryHint) {
+        val normalized = normalizeRoomCode(hint.code) ?: return
+        val source = hint.source
+        val name = hint.deviceName?.trim().orEmpty()
+
+        val nearPayload =
+            JSONObject()
+                .put("type", "nearby-device")
+                .put("code", normalized)
+                .put("source", source)
+                .put("deviceName", name)
+                .put("deviceId", hint.deviceId ?: "${source}_$normalized")
+
+        if (hint.signal != null) {
+            nearPayload.put("signal", hint.signal)
+        }
+
+        dispatch(nearPayload)
 
         val type =
             when (source) {
@@ -257,6 +304,8 @@ class NativeBridge(
                 .put("type", type)
                 .put("code", normalized)
                 .put("source", source)
+                .put("deviceName", name)
+                .put("deviceId", hint.deviceId ?: "${source}_$normalized")
 
         dispatch(payload)
     }
@@ -287,3 +336,5 @@ class NativeBridge(
         }
     }
 }
+
+

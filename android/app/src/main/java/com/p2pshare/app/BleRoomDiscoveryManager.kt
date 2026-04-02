@@ -20,7 +20,7 @@ import java.util.UUID
 
 class BleRoomDiscoveryManager(
     context: Context,
-    private val onRoomCode: (String, String) -> Unit,
+    private val onDiscoveryHint: (NativeDiscoveryHint) -> Unit,
     private val onInfo: (String) -> Unit,
 ) {
     private val appContext = context.applicationContext
@@ -176,7 +176,15 @@ class BleRoomDiscoveryManager(
         val fromName = extractRoomCode(result.device?.name)
         val fromData = extractRoomCode(fromServiceData)
         val roomCode = fromData ?: fromName ?: return
-        onRoomCode(roomCode, "ble")
+        onDiscoveryHint(
+            NativeDiscoveryHint(
+                code = roomCode,
+                source = "ble",
+                deviceName = result.device?.name,
+                deviceId = result.device?.address,
+                signal = result.rssi,
+            ),
+        )
     }
 
     private fun scheduleAutoStop() {
@@ -196,3 +204,5 @@ class BleRoomDiscoveryManager(
         private val PARCEL_SERVICE_UUID = ParcelUuid(SERVICE_UUID)
     }
 }
+
+

@@ -19,7 +19,7 @@ import com.google.android.gms.nearby.connection.Strategy
 
 class NearbyRoomDiscoveryManager(
     context: Context,
-    private val onRoomCode: (String, String) -> Unit,
+    private val onDiscoveryHint: (NativeDiscoveryHint) -> Unit,
     private val onInfo: (String) -> Unit,
 ) {
     private val appContext = context.applicationContext
@@ -79,7 +79,14 @@ class NearbyRoomDiscoveryManager(
     private fun connectToEndpoint(endpointId: String, endpointName: String?) {
         val advertisedCode = extractRoomCode(endpointName)
         if (advertisedCode != null) {
-            onRoomCode(advertisedCode, "nearby")
+            onDiscoveryHint(
+                NativeDiscoveryHint(
+                    code = advertisedCode,
+                    source = "nearby",
+                    deviceName = endpointName,
+                    deviceId = endpointId,
+                ),
+            )
         }
 
         val requesterName = "$ENDPOINT_PREFIX${localRoomCode ?: generateRoomCode()}"
@@ -123,7 +130,14 @@ class NearbyRoomDiscoveryManager(
                 val endpointName = connectionInfo.endpointName
                 val endpointCode = extractRoomCode(endpointName)
                 if (endpointCode != null) {
-                    onRoomCode(endpointCode, "nearby")
+                    onDiscoveryHint(
+                        NativeDiscoveryHint(
+                            code = endpointCode,
+                            source = "nearby",
+                            deviceName = endpointName,
+                            deviceId = endpointId,
+                        ),
+                    )
                 }
 
                 connectionsClient.acceptConnection(endpointId, payloadCallback)
@@ -155,7 +169,14 @@ class NearbyRoomDiscoveryManager(
                 val bytes = payload.asBytes() ?: return
                 val decoded = String(bytes, Charsets.UTF_8)
                 val code = extractRoomCode(decoded) ?: return
-                onRoomCode(code, "nearby")
+                onDiscoveryHint(
+                    NativeDiscoveryHint(
+                        code = code,
+                        source = "nearby",
+                        deviceName = endpointId,
+                        deviceId = endpointId,
+                    ),
+                )
             }
 
             override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
@@ -168,3 +189,5 @@ class NearbyRoomDiscoveryManager(
         private const val ENDPOINT_PREFIX = "CV-"
     }
 }
+
+

@@ -12,10 +12,13 @@ const DEFAULT_CONFIG = {
 };
 
 const STORAGE_KEY = 'sharevia_config_v1';
+const HISTORY_STORAGE_KEY = 'sharevia_transfer_history_v1';
 const CHANNEL_BUFFER_LIMIT = 2 * 1024 * 1024;
 const CONNECTION_TIMEOUT = 15000;
 const RECONNECT_MAX_ATTEMPTS = 3;
 const RECONNECT_DELAY = 2000;
+const MAX_HISTORY_ENTRIES = 300;
+const MAX_RECEIVED_ARCHIVE_ITEMS = 300;
 
 const state = {
   peer: null,
@@ -32,12 +35,26 @@ const state = {
   reconnectAttempts: 0,
   wasHosting: false,
   lastRoomId: null,
+  dashboardMode: 'idle',
+  radarActive: false,
+  radarScanStartedAt: 0,
+  nearbyDevices: new Map(),
+  nativeCapabilities: null,
+  transferHistory: loadTransferHistory(),
+  historyFilter: 'all',
+  receivedArchiveItems: [],
 };
 
 const elements = {
   setupSection: document.getElementById('setup-section'),
   hostingSection: document.getElementById('hosting-section'),
   shareSection: document.getElementById('share-section'),
+  btnDashboardSend: document.getElementById('btn-dashboard-send'),
+  btnDashboardReceive: document.getElementById('btn-dashboard-receive'),
+  radarPanel: document.getElementById('radar-panel'),
+  radarPulse: document.getElementById('radar-pulse'),
+  radarStatus: document.getElementById('radar-status'),
+  nearbyDeviceList: document.getElementById('nearby-device-list'),
   statusBadge: document.getElementById('status-badge'),
   transportBadge: document.getElementById('transport-badge'),
   myPeerId: document.getElementById('my-peer-id'),
@@ -48,6 +65,9 @@ const elements = {
   dropZone: document.getElementById('drop-zone'),
   fileInput: document.getElementById('file-input'),
   folderInput: document.getElementById('folder-input'),
+  btnSaveAll: document.getElementById('btn-save-all'),
+  historyList: document.getElementById('history-list'),
+  historyTabs: Array.from(document.querySelectorAll('[data-history-tab]')),
   btnPickFiles: document.getElementById('btn-pick-files'),
   btnPickFolder: document.getElementById('btn-pick-folder'),
   noteInbox: document.getElementById('note-inbox'),
@@ -65,9 +85,14 @@ const elements = {
   iceTurnCredential: document.getElementById('ice-turn-credential'),
   chunkSize: document.getElementById('chunk-size'),
   ackEvery: document.getElementById('ack-every'),
+  technicalCapabilities: document.getElementById('technical-capabilities'),
   capabilityNote: document.getElementById('capability-note'),
   capabilityGrid: document.getElementById('capability-grid'),
   nativeActions: document.getElementById('native-actions'),
+  btnNativeWifi: document.getElementById('btn-native-wifi'),
+  btnNativeBluetooth: document.getElementById('btn-native-bluetooth'),
+  btnNativeNfc: document.getElementById('btn-native-nfc'),
+  btnNativeLocation: document.getElementById('btn-native-location'),
   formSettings: document.getElementById('form-settings'),
   capWebrtc: document.getElementById('cap-webrtc'),
   capWifi: document.getElementById('cap-wifi'),
@@ -100,6 +125,135 @@ function loadConfig() {
 
 function persistConfig() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.config));
+}
+
+function loadTransferHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => item && typeof item === 'object')
+      .map((item) => ({
+        id: String(item.id || createTransferId()),
+        direction: item.direction === 'received' ? 'received' : 'sent',
+        name: String(item.name || 'Unknown file'),
+        size: Number(item.size || 0),
+        status: String(item.status || 'Completed'),
+        timestamp: Number(item.timestamp || Date.now()),
+      }))
+      .slice(0, MAX_HISTORY_ENTRIES);
+  } catch (error) {
+    console.warn('History load failed:', error);
+    return [];
+  }
+}
+
+function persistTransferHistory() {
+  try {
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(state.transferHistory.slice(0, MAX_HISTORY_ENTRIES)));
+  } catch (error) {
+    console.warn('History persist failed:', error);
+  }
+}
+
+function formatClockTime(input) {
+  const date = input instanceof Date ? input : new Date(input);
+  return date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatHistoryTimestamp(ts) {
+  const date = new Date(ts);
+  return `${date.toLocaleDateString()} ${formatClockTime(date)}`;
+}
+
+function formatFileTimestamp(ts = Date.now()) {
+  const date = new Date(ts);
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+}
+
+function sanitizeArchivePath(path, fallbackName) {
+  const raw = String(path || fallbackName || '').trim().replace(/\\/g, '/');
+  const clean = raw.replace(/^\/+/, '').replace(/\.\.(\/|\\)/g, '').trim();
+  return clean || String(fallbackName || 'file.bin').trim() || 'file.bin';
+}
+
+function addTransferHistoryEntry(entry) {
+  const normalized = {
+    id: createTransferId(),
+    direction: entry.direction === 'received' ? 'received' : 'sent',
+    name: String(entry.name || 'Unknown file'),
+    size: Number(entry.size || 0),
+    status: String(entry.status || 'Completed'),
+    timestamp: Number(entry.timestamp || Date.now()),
+  };
+
+  state.transferHistory.unshift(normalized);
+  if (state.transferHistory.length > MAX_HISTORY_ENTRIES) {
+    state.transferHistory.length = MAX_HISTORY_ENTRIES;
+  }
+  persistTransferHistory();
+  renderTransferHistory();
+}
+
+function setHistoryFilter(tab) {
+  const next = ['all', 'received', 'sent'].includes(tab) ? tab : 'all';
+  state.historyFilter = next;
+  elements.historyTabs.forEach((button) => {
+    button.classList.toggle('active', button.dataset.historyTab === next);
+  });
+  renderTransferHistory();
+}
+
+function renderTransferHistory() {
+  if (!elements.historyList) return;
+
+  const filtered = state.transferHistory.filter((item) => {
+    if (state.historyFilter === 'all') return true;
+    return item.direction === state.historyFilter;
+  });
+
+  elements.historyList.innerHTML = '';
+
+  if (!filtered.length) {
+    const empty = document.createElement('li');
+    empty.className = 'history-empty';
+    empty.textContent = 'No transfers yet.';
+    elements.historyList.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach((entry) => {
+    const item = document.createElement('li');
+    item.className = 'history-item';
+
+    const row = document.createElement('div');
+    row.className = 'history-row';
+
+    const name = document.createElement('span');
+    name.className = 'history-name';
+    name.textContent = entry.name;
+
+    const type = document.createElement('span');
+    type.className = 'history-type';
+    type.textContent = entry.direction === 'received' ? 'Received' : 'Sent';
+
+    row.appendChild(name);
+    row.appendChild(type);
+
+    const meta = document.createElement('div');
+    meta.className = 'history-meta';
+    meta.textContent = `${formatBytes(entry.size)} • ${entry.status} • ${formatHistoryTimestamp(entry.timestamp)}`;
+
+    item.appendChild(row);
+    item.appendChild(meta);
+    elements.historyList.appendChild(item);
+  });
 }
 
 function applyConfigToUI() {
@@ -258,6 +412,7 @@ function hasNativeBridge() {
 }
 
 function setCapabilityChip(element, label, supported, detail) {
+  if (!element) return;
   element.classList.remove('supported', 'unavailable');
   element.classList.add(supported ? 'supported' : 'unavailable');
   element.textContent = `${label}: ${detail}`;
@@ -270,24 +425,68 @@ function setElementHidden(element, hidden) {
 
 function detectCapabilities() {
   const nativeMode = hasNativeBridge();
+  const webrtcSupported = Boolean(window.RTCPeerConnection);
 
-  setCapabilityChip(elements.capWebrtc, 'WebRTC', Boolean(window.RTCPeerConnection), window.RTCPeerConnection ? 'supported' : 'missing');
+  setCapabilityChip(elements.capWebrtc, 'WebRTC', webrtcSupported, webrtcSupported ? 'supported' : 'missing');
   setCapabilityChip(elements.capWifi, 'Wi-Fi', nativeMode, nativeMode ? 'native app available' : 'native app required');
   setCapabilityChip(elements.capBluetooth, 'Bluetooth', nativeMode, nativeMode ? 'native app available' : 'native app required');
   setCapabilityChip(elements.capNfc, 'NFC', nativeMode, nativeMode ? 'native app available' : 'native app required');
   setCapabilityChip(elements.capLocation, 'Location', nativeMode, nativeMode ? 'native app available' : 'native app required');
   setCapabilityChip(elements.capNative, 'Native Bridge', nativeMode, nativeMode ? 'app mode' : 'web mode');
 
-  if (nativeMode) {
-    elements.capabilityNote.textContent = 'Native app mode detected. Pairing helpers and hardware permissions are enabled here.';
-    setElementHidden(elements.capabilityGrid, false);
-    setElementHidden(elements.nativeActions, false);
+  if (elements.capabilityNote) {
+    elements.capabilityNote.textContent = nativeMode
+      ? 'Native app mode detected. Pairing helpers and hardware permissions are enabled here.'
+      : 'Browser mode detected. Use the Android app for Bluetooth/NFC pairing, background transfers, and OS-level permissions.';
+  }
+
+  // Keep technical feature chips hidden in production UI.
+  setElementHidden(elements.technicalCapabilities, true);
+
+  if (!nativeMode) {
+    setElementHidden(elements.btnNativeWifi, true);
+    setElementHidden(elements.btnNativeBluetooth, true);
+    setElementHidden(elements.btnNativeLocation, true);
+    setElementHidden(elements.btnNativeNfc, !Boolean(window.NDEFReader));
     return;
   }
 
-  elements.capabilityNote.textContent = 'Browser mode detected. Use the Android app for Bluetooth/NFC pairing, background transfers, and OS-level permissions.';
-  setElementHidden(elements.capabilityGrid, true);
-  setElementHidden(elements.nativeActions, true);
+  setElementHidden(elements.btnNativeWifi, false);
+  setElementHidden(elements.btnNativeBluetooth, false);
+  setElementHidden(elements.btnNativeLocation, false);
+  setElementHidden(elements.btnNativeNfc, false);
+  invokeNativeAction('getNativeCapabilities', {}, { silentIfUnavailable: true });
+}
+
+function applyNativeCapabilities(data) {
+  state.nativeCapabilities = data || null;
+
+  const hasWifiHardware = !data || data.wifiSupported !== false;
+  const hasBluetoothHardware = !data || data.bluetoothSupported !== false;
+  const hasLocationHardware = !data || data.locationSupported !== false;
+  const hasNfcHardware = !data || data.nfcSupported !== false;
+
+  setElementHidden(elements.btnNativeWifi, !hasWifiHardware);
+  setElementHidden(elements.btnNativeBluetooth, !hasBluetoothHardware);
+  setElementHidden(elements.btnNativeLocation, !hasLocationHardware);
+  setElementHidden(elements.btnNativeNfc, !hasNfcHardware);
+
+  if (!hasNfcHardware) {
+    logActivity('NFC hardware not detected. NFC pairing option hidden.');
+  }
+
+  const unavailable = [];
+  if (!hasWifiHardware) unavailable.push('Wi-Fi');
+  if (!hasBluetoothHardware) unavailable.push('Bluetooth');
+  if (!hasLocationHardware) unavailable.push('Location');
+
+  if (unavailable.length > 0) {
+    logActivity(`Limited hardware support detected: ${unavailable.join(', ')}.`);
+  }
+
+  if (state.radarActive && (!hasWifiHardware || !hasBluetoothHardware)) {
+    setRadarStatus('Limited hardware support on this phone. Use QR or room code if radar results are sparse.');
+  }
 }
 
 function copyText(text, label) {
@@ -356,6 +555,220 @@ function invokeNativeAction(action, payload = {}, options = {}) {
   return false;
 }
 
+function setRadarStatus(message) {
+  if (!elements.radarStatus) return;
+  elements.radarStatus.textContent = message;
+}
+
+function clearNearbyDevices() {
+  state.nearbyDevices.clear();
+  renderNearbyDevices();
+}
+
+function renderNearbyDevices() {
+  if (!elements.nearbyDeviceList) return;
+
+  const items = Array.from(state.nearbyDevices.values())
+    .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
+    .slice(0, 25);
+
+  elements.nearbyDeviceList.innerHTML = '';
+
+  if (!items.length) {
+    const empty = document.createElement('li');
+    empty.className = 'nearby-empty';
+    empty.textContent = state.radarActive
+      ? 'Scanning for nearby devices...'
+      : 'No nearby devices yet.';
+    elements.nearbyDeviceList.appendChild(empty);
+    return;
+  }
+
+  items.forEach((device) => {
+    const item = document.createElement('li');
+    item.className = 'nearby-item';
+
+    const main = document.createElement('div');
+    main.className = 'nearby-main';
+
+    const left = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'nearby-name';
+    name.textContent = device.deviceName || `Nearby device ${device.code}`;
+    left.appendChild(name);
+
+    const meta = document.createElement('div');
+    meta.className = 'nearby-meta';
+    meta.textContent = `${device.sourceLabel} • ${device.code} • seen ${formatClockTime(device.lastSeenAt)}`;
+    left.appendChild(meta);
+
+    const connectBtn = document.createElement('button');
+    connectBtn.className = 'btn btn-secondary';
+    connectBtn.type = 'button';
+    connectBtn.textContent = 'Connect';
+    connectBtn.addEventListener('click', () => {
+      joinRoom(device.code);
+    });
+
+    main.appendChild(left);
+    main.appendChild(connectBtn);
+    item.appendChild(main);
+    elements.nearbyDeviceList.appendChild(item);
+  });
+}
+
+function upsertNearbyDevice(data) {
+  const code = extractRoomId(data.code);
+  if (!code) return;
+
+  const source = String(data.source || 'native');
+  const sourceLabelMap = {
+    bluetooth: 'Bluetooth',
+    ble: 'Bluetooth',
+    nearby: 'Wi-Fi Direct',
+    wifi: 'Wi-Fi',
+    'wifi-fingerprint': 'Wi-Fi Hint',
+    location: 'Location Hint',
+    'location-room': 'Location Hint',
+    nfc: 'NFC',
+  };
+
+  const key = String(data.deviceId || `${source}:${code}:${String(data.deviceName || '').trim()}`);
+  const current = state.nearbyDevices.get(key) || {};
+  const next = {
+    key,
+    code,
+    source,
+    sourceLabel: sourceLabelMap[source] || source,
+    deviceName: normalizeDeviceName(data.deviceName, code) || current.deviceName || '',
+    lastSeenAt: Date.now(),
+  };
+
+  state.nearbyDevices.set(key, next);
+  renderNearbyDevices();
+}
+
+function normalizeDeviceName(rawName, code) {
+  const value = String(rawName || '').trim();
+  if (!value) return '';
+  if (value === code) return '';
+  if (value.toUpperCase() === `CV-${code}`) return '';
+  return value;
+}
+
+function startOfflineRadarDiscovery() {
+  state.radarActive = true;
+  state.radarScanStartedAt = Date.now();
+  state.dashboardMode = 'receive';
+  setElementHidden(elements.radarPanel, false);
+  clearNearbyDevices();
+  setRadarStatus('Scanning nearby devices...');
+
+  const nativeMode = hasNativeBridge();
+  if (!nativeMode) {
+    setRadarStatus('Offline Radar requires the Android app. Use QR or room code in browser mode.');
+    return;
+  }
+
+  invokeNativeAction('startWifiPairing', {}, { silentIfUnavailable: true });
+  invokeNativeAction('startBluetoothPairing', {}, { silentIfUnavailable: true });
+  invokeNativeAction('startLocationPairing', {}, { silentIfUnavailable: true });
+  logActivity('Offline Radar started (Wi-Fi + Bluetooth + location hints).');
+}
+
+function stopOfflineRadarDiscovery() {
+  state.radarActive = false;
+  invokeNativeAction('stopPairing', {}, { silentIfUnavailable: true });
+}
+
+async function getJsZipCtor() {
+  if (window.JSZip) {
+    return window.JSZip;
+  }
+
+  alert('ZIP engine is unavailable right now. Reopen the app with internet once to cache JSZip.');
+  return null;
+}
+
+function deriveFolderArchiveName(fileEntries) {
+  const firstPath = String(fileEntries[0] && fileEntries[0].relativePath ? fileEntries[0].relativePath : '');
+  const topLevel = firstPath.split('/').filter(Boolean)[0];
+  return (topLevel || 'folder').replace(/[^a-zA-Z0-9_-]/g, '-');
+}
+
+async function zipFileEntries(fileEntries) {
+  const JSZipCtor = await getJsZipCtor();
+  if (!JSZipCtor) return null;
+
+  const zip = new JSZipCtor();
+  for (const entry of fileEntries) {
+    const archivePath = sanitizeArchivePath(entry.relativePath || entry.file.name, entry.file.name);
+    zip.file(archivePath, entry.file);
+  }
+
+  const archiveBlob = await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+
+  const base = deriveFolderArchiveName(fileEntries);
+  const archiveName = `${base}-${formatFileTimestamp()}.zip`;
+  return new File([archiveBlob], archiveName, { type: 'application/zip' });
+}
+
+function pushReceivedArchiveItem(name, blob, timestamp) {
+  state.receivedArchiveItems.unshift({
+    name: String(name || 'file.bin'),
+    blob,
+    timestamp: Number(timestamp || Date.now()),
+  });
+
+  if (state.receivedArchiveItems.length > MAX_RECEIVED_ARCHIVE_ITEMS) {
+    state.receivedArchiveItems.length = MAX_RECEIVED_ARCHIVE_ITEMS;
+  }
+  updateSaveAllButtonState();
+}
+
+function updateSaveAllButtonState() {
+  if (!elements.btnSaveAll) return;
+  elements.btnSaveAll.disabled = state.receivedArchiveItems.length === 0;
+}
+
+async function saveAllReceivedArchive() {
+  if (!state.receivedArchiveItems.length) {
+    alert('No received files to archive yet.');
+    return;
+  }
+
+  const JSZipCtor = await getJsZipCtor();
+  if (!JSZipCtor) return;
+
+  const zip = new JSZipCtor();
+  state.receivedArchiveItems.forEach((item, index) => {
+    const stamped = `${formatFileTimestamp(item.timestamp)}-${String(index + 1).padStart(3, '0')}-${item.name}`;
+    const fileName = sanitizeArchivePath(stamped, item.name);
+    zip.file(fileName, item.blob);
+  });
+
+  const blob = await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+
+  const anchor = document.createElement('a');
+  anchor.href = URL.createObjectURL(blob);
+  anchor.download = `ShareVia-received-${formatFileTimestamp()}.zip`;
+  anchor.click();
+
+  setTimeout(() => {
+    URL.revokeObjectURL(anchor.href);
+  }, 1500);
+
+  logActivity(`Saved ${state.receivedArchiveItems.length} received files as archive.`);
+}
+
 window.handleNativeBridgeMessage = function handleNativeBridgeMessage(payload) {
   let data = payload;
 
@@ -372,14 +785,45 @@ window.handleNativeBridgeMessage = function handleNativeBridgeMessage(payload) {
   }
 
   if (data.type === 'pairing-code' && data.code) {
-    elements.joinIdInput.value = String(data.code).trim();
-    logActivity(`Native pairing code received: ${data.code}`);
+    const code = String(data.code).trim();
+    if (!elements.joinIdInput.value.trim()) {
+      elements.joinIdInput.value = code;
+    }
+    upsertNearbyDevice({
+      code,
+      source: data.source || 'native',
+      deviceName: data.deviceName || '',
+      deviceId: data.deviceId || '',
+    });
+    setRadarStatus('Nearby device discovered. Tap Connect.');
+    logActivity(`Native pairing code discovered: ${code}`);
     return;
   }
 
   if (data.type === 'location-room-hint' && data.code) {
-    elements.joinIdInput.value = String(data.code).trim();
+    const code = String(data.code).trim();
+    if (!elements.joinIdInput.value.trim()) {
+      elements.joinIdInput.value = code;
+    }
+    upsertNearbyDevice({
+      code,
+      source: data.source || 'location',
+      deviceName: data.deviceName || 'Location hint',
+      deviceId: data.deviceId || '',
+    });
+    setRadarStatus('Location/Wi-Fi hint received.');
     logActivity('Location-assisted room suggestion received.');
+    return;
+  }
+
+  if (data.type === 'nearby-device' && data.code) {
+    upsertNearbyDevice(data);
+    setRadarStatus('Nearby device discovered. Tap Connect.');
+    return;
+  }
+
+  if (data.type === 'native-capabilities') {
+    applyNativeCapabilities(data);
     return;
   }
 
@@ -391,6 +835,7 @@ window.handleNativeBridgeMessage = function handleNativeBridgeMessage(payload) {
   if (data.type === 'permissions-denied') {
     const denied = String(data.permissions || '').trim();
     logActivity(`Permissions denied${denied ? `: ${denied}` : ''}.`, 'Warning');
+    setRadarStatus('Some permissions are denied. Enable Bluetooth/Wi-Fi/Location for full Offline Radar.');
     return;
   }
 
@@ -525,9 +970,11 @@ function attemptReconnect() {
 
 function hostRoom() {
   const roomId = generateRoomCode();
+  state.dashboardMode = 'send';
   state.pendingJoinId = null;
   state.wasHosting = true;
   state.lastRoomId = roomId;
+  stopOfflineRadarDiscovery();
   showSection(elements.hostingSection);
   updateStatus('Creating room', 'waiting');
   logActivity(`Creating room ${roomId}.`);
@@ -542,6 +989,7 @@ function joinRoom(inputRoomId) {
     return;
   }
 
+  state.dashboardMode = 'receive';
   state.pendingJoinId = roomId;
   updateStatus('Preparing', 'waiting');
   logActivity(`Preparing to join room ${roomId}.`);
@@ -570,6 +1018,7 @@ function setupConnection(connection, sourceLabel) {
     elements.remotePeerId.textContent = connection.peer;
     updateStatus('Connected', 'connected');
     logActivity(`${sourceLabel} connection open with ${connection.peer}.`);
+    stopOfflineRadarDiscovery();
     invokeNativeAction('startTransferService', {}, { silentIfUnavailable: true });
     announceCapabilities();
   });
@@ -614,6 +1063,12 @@ function resetToSetup(options = {}) {
   state.isResetting = true;
 
   try {
+    state.dashboardMode = 'idle';
+    state.radarActive = false;
+    clearNearbyDevices();
+    setElementHidden(elements.radarPanel, true);
+    setRadarStatus('Tap Receive to start nearby scan.');
+
     invokeNativeAction('stopTransferService', {}, { silentIfUnavailable: true });
     invokeNativeAction('stopPairing', {}, { silentIfUnavailable: true });
     invokeNativeAction('setRoomContext', { roomCode: '', role: 'idle', targetRoom: '' }, { silentIfUnavailable: true });
@@ -656,7 +1111,7 @@ function resetToSetup(options = {}) {
   }
 }
 
-function createTransferUI(id, name, size, direction) {
+function createTransferUI(id, name, size, direction, timestamp = Date.now()) {
   const existing = document.getElementById(`transfer-${id}`);
   if (existing) return existing;
 
@@ -669,20 +1124,20 @@ function createTransferUI(id, name, size, direction) {
 
   const title = document.createElement('span');
   title.className = 'transfer-name';
-  title.textContent = `${direction === 'outgoing' ? 'Sending' : 'Receiving'} — ${name}`;
+  title.textContent = `${direction === 'outgoing' ? 'Sending' : 'Receiving'} - ${name}`;
 
   const headRight = document.createElement('div');
   headRight.className = 'transfer-head-right';
 
   const sizeLabel = document.createElement('span');
   sizeLabel.className = 'transfer-meta';
-  sizeLabel.textContent = formatBytes(size);
+  sizeLabel.textContent = `${formatBytes(size)} - ${formatClockTime(timestamp)}`;
 
   const cancelBtn = document.createElement('button');
   cancelBtn.className = 'btn-cancel';
   cancelBtn.id = `cancel-${id}`;
   cancelBtn.title = 'Cancel transfer';
-  cancelBtn.innerHTML = '✕';
+  cancelBtn.textContent = 'X';
   cancelBtn.addEventListener('click', () => cancelTransfer(id, direction));
 
   headRight.appendChild(sizeLabel);
@@ -753,7 +1208,7 @@ function markTransferCancelled(id) {
 
   if (bar) { bar.style.background = 'var(--danger, #c84334)'; bar.style.width = '100%'; }
   if (status) status.textContent = 'Cancelled';
-  if (speed) speed.textContent = '—';
+  if (speed) speed.textContent = '-';
   if (cancelBtn) cancelBtn.remove();
 }
 
@@ -862,6 +1317,7 @@ function handleIncomingFileStart(payload) {
     name: payload.name,
     size: Number(payload.size),
     mime: payload.mime || 'application/octet-stream',
+    startedAt: Number(payload.timestamp || Date.now()),
     totalChunks: Number(payload.totalChunks),
     receivedChunks: 0,
     receivedBytes: 0,
@@ -870,7 +1326,7 @@ function handleIncomingFileStart(payload) {
   };
 
   state.incomingTransfers.set(payload.transferId, record);
-  createTransferUI(payload.transferId, payload.name, payload.size, 'incoming');
+  createTransferUI(payload.transferId, payload.name, payload.size, 'incoming', record.startedAt);
   logActivity(`Receiving file: ${payload.name}`);
 }
 
@@ -928,9 +1384,17 @@ function handleIncomingFileEnd(payload) {
   const blob = new Blob(chunks, { type: record.mime });
   const url = URL.createObjectURL(blob);
   addDownloadAction(payload.transferId, url, record.name);
+  pushReceivedArchiveItem(record.name, blob, Date.now());
   updateTransferProgress(payload.transferId, 100, record.size, record.size, record.startTs, 'Received');
-  markTransferComplete(payload.transferId, `Received (${formatBytes(record.size)})`);
+  markTransferComplete(payload.transferId, `Received (${formatBytes(record.size)}) at ${formatClockTime(Date.now())}`);
   logActivity(`Received file: ${record.name}`);
+  addTransferHistoryEntry({
+    direction: 'received',
+    name: record.name,
+    size: record.size,
+    status: 'Completed',
+    timestamp: Date.now(),
+  });
   state.incomingTransfers.delete(payload.transferId);
 }
 
@@ -982,64 +1446,99 @@ function sleep(ms) {
   });
 }
 
-async function sendSelectedFiles(fileList, items) {
+async function sendSelectedFiles(fileList, items, options = {}) {
   if (!state.conn || !state.conn.open) {
     alert('Connect to a room before sending files.');
     return;
   }
 
-  const files = [];
+  const fileEntries = [];
   
   if (items && items.length > 0) {
     for (const item of items) {
       const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
       if (entry) {
-        await getFilesFromEntry(entry, files);
+        await getFilesFromEntry(entry, fileEntries);
       }
     }
   } else {
     for (const file of Array.from(fileList || [])) {
       if (file.size === 0 && !file.type) continue;
-      files.push(file);
+      const relativePath = sanitizeArchivePath(file.webkitRelativePath || file.name, file.name);
+      fileEntries.push({
+        file,
+        relativePath,
+      });
     }
   }
 
-  if (!files.length) {
+  if (!fileEntries.length) {
     return;
   }
 
-  for (const file of files) {
-    await sendFile(file);
+  const hasFolderShape =
+    options.source === 'folder' ||
+    fileEntries.some((entry) => String(entry.relativePath || '').includes('/'));
+
+  if (hasFolderShape) {
+    const zipped = await zipFileEntries(fileEntries);
+    if (zipped) {
+      logActivity(`Folder bundled as ${zipped.name} (${fileEntries.length} files).`);
+      await sendFile(zipped, { bundledFromFolder: true });
+      return;
+    }
+  }
+
+  for (const entry of fileEntries) {
+    await sendFile(entry.file);
   }
 }
 
-async function getFilesFromEntry(entry, fileList) {
+async function readDirectoryEntries(entry) {
+  const reader = entry.createReader();
+  const entries = [];
+
+  while (true) {
+    const chunk = await new Promise((resolve) => reader.readEntries(resolve));
+    if (!chunk || chunk.length === 0) break;
+    entries.push(...chunk);
+  }
+
+  return entries;
+}
+
+async function getFilesFromEntry(entry, fileEntries, parentPath = '') {
   if (entry.isFile) {
     const file = await new Promise((resolve) => entry.file(resolve));
-    fileList.push(file);
+    const relativePath = sanitizeArchivePath(`${parentPath}${file.name}`, file.name);
+    fileEntries.push({
+      file,
+      relativePath,
+    });
   } else if (entry.isDirectory) {
-    const dirReader = entry.createReader();
-    const entries = await new Promise((resolve) => dirReader.readEntries(resolve));
+    const entries = await readDirectoryEntries(entry);
     for (const e of entries) {
-      await getFilesFromEntry(e, fileList);
+      await getFilesFromEntry(e, fileEntries, `${parentPath}${entry.name}/`);
     }
   }
 }
 
-async function sendFile(file) {
+async function sendFile(file, options = {}) {
   const transferId = createTransferId();
   const totalChunks = Math.ceil(file.size / state.config.chunkSize);
+  const startedAt = Date.now();
   const transferRecord = {
     id: transferId,
     size: file.size,
     sentBytes: 0,
     ackedBytes: 0,
+    startedAt,
     startTs: performance.now(),
     totalChunks,
   };
 
   state.outgoingTransfers.set(transferId, transferRecord);
-  createTransferUI(transferId, file.name, file.size, 'outgoing');
+  createTransferUI(transferId, file.name, file.size, 'outgoing', startedAt);
 
   safeSend({
     type: 'file-start',
@@ -1047,6 +1546,7 @@ async function sendFile(file) {
     name: file.name,
     size: file.size,
     mime: file.type || 'application/octet-stream',
+    timestamp: startedAt,
     totalChunks,
   });
 
@@ -1097,8 +1597,16 @@ async function sendFile(file) {
     transferId,
   });
 
-  markTransferComplete(transferId, `Sent (${formatBytes(file.size)})`);
+  const statusSuffix = options.bundledFromFolder ? 'Folder archive sent' : 'Sent';
+  markTransferComplete(transferId, `${statusSuffix} (${formatBytes(file.size)}) at ${formatClockTime(Date.now())}`);
   logActivity(`Sent file: ${file.name}`);
+  addTransferHistoryEntry({
+    direction: 'sent',
+    name: file.name,
+    size: file.size,
+    status: 'Completed',
+    timestamp: Date.now(),
+  });
 }
 
 function queueNote() {
@@ -1241,7 +1749,9 @@ function registerServiceWorker() {
 }
 
 function bindEvents() {
-  document.getElementById('btn-host').addEventListener('click', hostRoom);
+  elements.btnDashboardSend && elements.btnDashboardSend.addEventListener('click', hostRoom);
+  elements.btnDashboardReceive && elements.btnDashboardReceive.addEventListener('click', startOfflineRadarDiscovery);
+
   document.getElementById('btn-scan').addEventListener('click', startScanner);
   document.getElementById('btn-close-scanner').addEventListener('click', stopScanner);
   document.getElementById('btn-cancel-host').addEventListener('click', () => resetToSetup({ destroyPeer: true }));
@@ -1254,10 +1764,10 @@ function bindEvents() {
   });
   document.getElementById('btn-send-note').addEventListener('click', queueNote);
 
-  document.getElementById('btn-native-wifi').addEventListener('click', () => invokeNativeAction('startWifiPairing'));
-  document.getElementById('btn-native-bluetooth').addEventListener('click', () => invokeNativeAction('startBluetoothPairing'));
-  document.getElementById('btn-native-nfc').addEventListener('click', () => invokeNativeAction('startNfcPairing'));
-  document.getElementById('btn-native-location').addEventListener('click', () => invokeNativeAction('startLocationPairing'));
+  elements.btnNativeWifi && elements.btnNativeWifi.addEventListener('click', () => invokeNativeAction('startWifiPairing'));
+  elements.btnNativeBluetooth && elements.btnNativeBluetooth.addEventListener('click', () => invokeNativeAction('startBluetoothPairing'));
+  elements.btnNativeNfc && elements.btnNativeNfc.addEventListener('click', () => invokeNativeAction('startNfcPairing'));
+  elements.btnNativeLocation && elements.btnNativeLocation.addEventListener('click', () => invokeNativeAction('startLocationPairing'));
 
   document.getElementById('btn-copy-code').addEventListener('click', () => {
     copyText(state.myId, 'Room code');
@@ -1265,6 +1775,14 @@ function bindEvents() {
 
   document.getElementById('btn-copy-link').addEventListener('click', () => {
     copyText(generateJoinUrl(state.myId), 'Join link');
+  });
+
+  elements.btnSaveAll && elements.btnSaveAll.addEventListener('click', saveAllReceivedArchive);
+
+  elements.historyTabs.forEach((button) => {
+    button.addEventListener('click', () => {
+      setHistoryFilter(button.dataset.historyTab || 'all');
+    });
   });
 
   elements.joinIdInput.addEventListener('keydown', (event) => {
@@ -1292,12 +1810,12 @@ function bindEvents() {
   });
 
   elements.fileInput.addEventListener('change', async () => {
-    await sendSelectedFiles(elements.fileInput.files);
+    await sendSelectedFiles(elements.fileInput.files, null, { source: 'files' });
     elements.fileInput.value = '';
   });
 
   elements.folderInput.addEventListener('change', async () => {
-    await sendSelectedFiles(elements.folderInput.files);
+    await sendSelectedFiles(elements.folderInput.files, null, { source: 'folder' });
     elements.folderInput.value = '';
   });
 
@@ -1319,7 +1837,7 @@ function bindEvents() {
   elements.dropZone.addEventListener('drop', async (event) => {
     event.preventDefault();
     elements.dropZone.classList.remove('dragging');
-    await sendSelectedFiles(event.dataTransfer.files, event.dataTransfer.items);
+    await sendSelectedFiles(event.dataTransfer.files, event.dataTransfer.items, { source: 'drop' });
   });
 }
 
@@ -1327,8 +1845,12 @@ function initialize() {
   applyConfigToUI();
   updateTransportBadge();
   updateStatus('Disconnected', 'disconnected');
+  setElementHidden(elements.radarPanel, true);
+  setRadarStatus('Tap Receive to start nearby scan.');
   detectCapabilities();
   bindEvents();
+  setHistoryFilter('all');
+  updateSaveAllButtonState();
   registerServiceWorker();
 
   // Mobile tab suspension resilience: when user returns from WhatsApp etc.,
@@ -1352,3 +1874,4 @@ function initialize() {
 }
 
 window.addEventListener('load', initialize);
+

@@ -6,6 +6,7 @@ Cross-platform P2P file sharing baseline:
 - Native bridge hooks for Bluetooth/NFC/location pairing
 - Native discovery stack: BLE + Nearby (Bluetooth/Wi-Fi) + location hints
 - TURN configuration support for strict NAT/mobile networks
+- Production-edition UI: Send/Receive dashboard, Offline Radar list, and persistent transfer history tabs
 
 ## Folders
 - `web/` - responsive PWA transfer client.
@@ -46,4 +47,4 @@ Cross-platform P2P file sharing baseline:
 ## Notes on compatibility
 - Browser mode: use WebRTC + signaling only.
 - Native app mode: enables bridge actions, BLE/Nearby pairing, runtime permissions, and foreground transfer service flow.
-- Native pairing internals are still scaffolded and should be replaced with production BLE/Nearby/NFC logic.
+- Folder sends can be bundled to ZIP (JSZip-based), and received files can be archived with one click.

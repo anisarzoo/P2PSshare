@@ -35,17 +35,39 @@
 
     <main class="main-grid">
       <section id="setup-section" class="panel active">
-        <h2>Start Sharing</h2>
-        <p class="subtitle">Host a room, scan QR, or join by code. Works on local Wi-Fi with your own signaling server or online with cloud signaling.</p>
+        <h2>Quick Share</h2>
+        <p class="subtitle">Send or receive instantly. Offline Radar detects nearby devices over Bluetooth and Wi-Fi.</p>
 
-        <div class="action-grid">
-          <button id="btn-host" class="btn btn-primary pulse">Create Room</button>
-          <button id="btn-scan" class="btn btn-dark">Scan QR</button>
+        <div class="dashboard-grid">
+          <button id="btn-dashboard-send" class="dashboard-card send" type="button">
+            <span class="dashboard-title">Send</span>
+            <span class="dashboard-copy">Create room and share files</span>
+          </button>
+          <button id="btn-dashboard-receive" class="dashboard-card receive" type="button">
+            <span class="dashboard-title">Receive</span>
+            <span class="dashboard-copy">Auto-scan nearby devices</span>
+          </button>
         </div>
 
-        <div class="join-inline">
-          <input type="text" id="join-id" placeholder="Enter 6-digit room code" inputmode="numeric" maxlength="6">
-          <button id="btn-join" class="btn btn-secondary">Join</button>
+        <div id="radar-panel" class="radar-panel hidden">
+          <div class="radar-head">
+            <h3>Offline Radar</h3>
+            <span id="radar-pulse" class="radar-pulse"></span>
+          </div>
+          <p id="radar-status" class="radar-status">Tap <strong>Receive</strong> to start nearby scan.</p>
+          <ul id="nearby-device-list" class="nearby-device-list"></ul>
+          <div id="native-actions" class="native-actions">
+            <button id="btn-native-wifi" class="btn btn-ghost" type="button">Wi-Fi Pairing</button>
+            <button id="btn-native-bluetooth" class="btn btn-ghost" type="button">Bluetooth Pairing</button>
+            <button id="btn-native-nfc" class="btn btn-ghost" type="button">NFC Pairing</button>
+            <button id="btn-native-location" class="btn btn-ghost" type="button">Location Hint</button>
+            <button id="btn-scan" class="btn btn-dark" type="button">Scan QR</button>
+          </div>
+
+          <div class="join-inline">
+            <input type="text" id="join-id" placeholder="Enter 6-digit room code" inputmode="numeric" maxlength="6">
+            <button id="btn-join" class="btn btn-secondary">Join</button>
+          </div>
         </div>
 
         <button id="btn-advanced" class="link-btn" type="button" aria-haspopup="true" aria-expanded="false">Network and Transfer Settings</button>
@@ -106,7 +128,7 @@
           </form>
         </div>
 
-        <div class="capabilities">
+        <div id="technical-capabilities" class="capabilities hidden">
           <h3>Native App Features</h3>
           <p id="capability-note" class="capability-note"></p>
           <div id="capability-grid" class="capability-grid">
@@ -116,12 +138,6 @@
             <span id="cap-nfc" class="capability-chip">NFC: checking</span>
             <span id="cap-location" class="capability-chip">Location: checking</span>
             <span id="cap-native" class="capability-chip">Native Bridge: checking</span>
-          </div>
-          <div id="native-actions" class="native-actions">
-            <button id="btn-native-wifi" class="btn btn-ghost" type="button">Pair via Wi-Fi</button>
-            <button id="btn-native-bluetooth" class="btn btn-ghost" type="button">Pair via Bluetooth</button>
-            <button id="btn-native-nfc" class="btn btn-ghost" type="button">Pair via NFC</button>
-            <button id="btn-native-location" class="btn btn-ghost" type="button">Pair via Location</button>
           </div>
         </div>
       </section>
@@ -165,6 +181,18 @@
 
         <div id="note-inbox" class="note-inbox"></div>
         <div id="transfer-list" class="transfer-list"></div>
+        <div class="transfer-tools">
+          <button id="btn-save-all" class="btn btn-secondary" type="button" disabled>Save All (Archive)</button>
+        </div>
+        <section class="history-card">
+          <h3>Transfer History</h3>
+          <div class="history-tabs">
+            <button class="history-tab active" data-history-tab="all" type="button">All</button>
+            <button class="history-tab" data-history-tab="received" type="button">Received</button>
+            <button class="history-tab" data-history-tab="sent" type="button">Sent</button>
+          </div>
+          <ul id="history-list" class="history-list"></ul>
+        </section>
         <button id="btn-disconnect" class="btn btn-ghost full">Disconnect</button>
       </section>
 
@@ -192,6 +220,7 @@
   <script src="peerjs.min.js"></script>
   <script src="qrcode.min.js"></script>
   <script src="html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

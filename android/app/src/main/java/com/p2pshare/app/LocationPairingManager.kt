@@ -10,22 +10,37 @@ import java.util.Locale
 
 class LocationPairingManager(
     context: Context,
-    private val onRoomCode: (String, String) -> Unit,
+    private val onDiscoveryHint: (NativeDiscoveryHint) -> Unit,
     private val onInfo: (String) -> Unit,
 ) {
     private val appContext = context.applicationContext
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(appContext)
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+    private var activeTokenSource: CancellationTokenSource? = null
 
     @SuppressLint("MissingPermission")
     fun start(currentRoomCode: String?) {
+        stop()
+
         val currentRoom = normalizeRoomCode(currentRoomCode)
         if (currentRoom != null) {
-            onRoomCode(currentRoom, "location-room")
+            onDiscoveryHint(
+                NativeDiscoveryHint(
+                    code = currentRoom,
+                    source = "location-room",
+                    deviceName = "Current room",
+                    deviceId = "local-room",
+                ),
+            )
         }
 
         emitWifiFingerprintHint()
         emitLocationHint()
+    }
+
+    fun stop() {
+        activeTokenSource?.cancel()
+        activeTokenSource = null
     }
 
     @SuppressLint("MissingPermission")
@@ -65,17 +80,28 @@ class LocationPairingManager(
         }
 
         val code = deriveRoomCode("wifi:$seed")
-        onRoomCode(code, "wifi-fingerprint")
+        onDiscoveryHint(
+            NativeDiscoveryHint(
+                code = code,
+                source = "wifi-fingerprint",
+                deviceName = "Wi-Fi vicinity",
+                deviceId = "wifi-fingerprint",
+            ),
+        )
         onInfo("Wi-Fi pairing hint generated.")
     }
 
     @SuppressLint("MissingPermission")
     private fun emitLocationHint() {
         val tokenSource = CancellationTokenSource()
+        activeTokenSource = tokenSource
 
         fusedLocationClient
             .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, tokenSource.token)
             .addOnSuccessListener { location ->
+                if (activeTokenSource == tokenSource) {
+                    activeTokenSource = null
+                }
                 if (location == null) {
                     onInfo("Location hint unavailable right now.")
                     return@addOnSuccessListener
@@ -97,10 +123,20 @@ class LocationPairingManager(
                     )
 
                 val code = deriveRoomCode(seed)
-                onRoomCode(code, "location")
+                onDiscoveryHint(
+                    NativeDiscoveryHint(
+                        code = code,
+                        source = "location",
+                        deviceName = "Location vicinity",
+                        deviceId = "location-hint",
+                    ),
+                )
                 onInfo("Location-assisted pairing hint generated.")
             }
             .addOnFailureListener {
+                if (activeTokenSource == tokenSource) {
+                    activeTokenSource = null
+                }
                 onInfo("Location hint failed: ${it.message ?: "unknown error"}")
             }
     }
@@ -109,4 +145,6 @@ class LocationPairingManager(
         private const val DAY_MS = 24 * 60 * 60 * 1000L
     }
 }
+
+
 

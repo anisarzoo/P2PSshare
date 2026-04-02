@@ -30,8 +30,7 @@ The current `NativeBridge.kt` now includes:
 - location + Wi-Fi fingerprint pairing hints for older-device fallback,
 - callback messages back to the web UI for permission and status events.
 
-It still ships safe starter pairing logic.
-Replace pairing internals with production BLE/Nearby/NFC flows per your hardware requirements.
+Discovery flows are now wired end-to-end, but you should still harden device-compatibility behavior on your target hardware matrix.
 
 ## Security checklist
 - Keep release build minification enabled.
