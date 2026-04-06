@@ -225,27 +225,7 @@ h3 {
   line-height: 1.45;
 }
 
-.app-banner {
-  margin-top: 16px;
-  border-radius: 18px;
-  padding: 14px;
-  border: 1px solid rgba(11, 106, 97, 0.28);
-  background: linear-gradient(135deg, rgba(11, 106, 97, 0.12), rgba(22, 159, 144, 0.2));
-}
 
-.app-banner h3 {
-  margin: 0 0 6px;
-}
-
-.app-banner p {
-  margin: 0 0 10px;
-  color: var(--text-soft);
-  font-size: 0.9rem;
-}
-
-.app-banner .btn {
-  margin-top: 4px;
-}
 
 .web-join-panel {
   margin-top: 16px;
@@ -634,13 +614,6 @@ textarea {
   gap: 8px;
 }
 
-body.web-join-mode #dashboard-grid,
-body.web-join-mode #radar-panel,
-body.web-join-mode #btn-advanced,
-body.web-join-mode #advanced-panel,
-body.web-join-mode #technical-capabilities,
-body.web-join-mode #hosting-section,
-body.web-join-mode .activity-panel,
 body.web-join-mode footer {
   display: none !important;
 }
@@ -966,30 +939,7 @@ body.web-join-mode footer {
   white-space: nowrap;
 }
 
-.activity-log {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-  max-height: 220px;
-  overflow: auto;
-}
 
-.activity-log li {
-  border-radius: 10px;
-  padding: 9px 10px;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(7, 69, 63, 0.1);
-  color: var(--text-soft);
-  font-size: 0.84rem;
-}
-
-.activity-log span {
-  color: var(--text-main);
-  font-weight: 800;
-  margin-right: 6px;
-}
 
 .modal {
   position: fixed;
@@ -1183,14 +1133,7 @@ footer {
     font-size: 0.86rem;
   }
 
-  .activity-log {
-    max-height: 160px;
-  }
 
-  .activity-log li {
-    font-size: 0.78rem;
-    padding: 8px;
-  }
 }
 
 @media (max-width: 380px) {
