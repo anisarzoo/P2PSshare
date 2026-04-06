@@ -1,4 +1,4 @@
-package com.ShareVia.app
+﻿package com.ShareVia.app
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -32,10 +32,20 @@ class MainActivity : AppCompatActivity() {
 
     private val runtimePermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grantMap ->
-            if (!this::nativeBridge.isInitialized) {
-                return@registerForActivityResult
+            val allGranted = grantMap.values.all { it }
+
+            pendingPermissionRequest?.let { request ->
+                if (allGranted) {
+                    runOnUiThread { request.grant(request.resources) }
+                } else {
+                    runOnUiThread { request.deny() }
+                }
+                pendingPermissionRequest = null
             }
-            nativeBridge.onRuntimePermissionsResult(grantMap)
+
+            if (this::nativeBridge.isInitialized) {
+                nativeBridge.onRuntimePermissionsResult(grantMap)
+            }
         }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -71,8 +81,29 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 override fun onPermissionRequest(request: PermissionRequest) {
-                    runOnUiThread {
-                        request.grant(request.resources)
+                    val resources = request.resources
+                    val permissionsNeeded = mutableListOf<String>()
+                    
+                    for (resource in resources) {
+                        when (resource) {
+                            PermissionRequest.RESOURCE_VIDEO_CAPTURE -> permissionsNeeded.add(Manifest.permission.CAMERA)
+                            PermissionRequest.RESOURCE_AUDIO_CAPTURE -> permissionsNeeded.add(Manifest.permission.RECORD_AUDIO)
+                        }
+                    }
+
+                    if (permissionsNeeded.isEmpty()) {
+                        runOnUiThread { request.grant(resources) }
+                    } else {
+                        val missing = permissionsNeeded.filter {
+                            ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED
+                        }
+                        
+                        if (missing.isEmpty()) {
+                            runOnUiThread { request.grant(resources) }
+                        } else {
+                            pendingPermissionRequest = request
+                            runtimePermissionLauncher.launch(missing.toTypedArray())
+                        }
                     }
                 }
             }
@@ -157,5 +188,3 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
-
-

@@ -23,6 +23,9 @@ class NativeBridge(
             activity.applicationContext,
             ::handleDiscoveryHint,
             ::sendInfo,
+            ::handleNearbyData,
+            ::handleNearbyConnected,
+            ::handleNearbyDisconnected,
         )
 
     private val locationPairingManager =
@@ -176,6 +179,11 @@ class NativeBridge(
     }
 
     @JavascriptInterface
+    fun sendNearbyData(endpointId: String, data: String) {
+        nearbyRoomDiscoveryManager.sendData(endpointId, data)
+    }
+
+    @JavascriptInterface
     fun postMessage(rawPayload: String) {
         val payload = runCatching { JSONObject(rawPayload) }.getOrNull()
         val action = payload?.optString("action")?.trim().orEmpty()
@@ -193,6 +201,11 @@ class NativeBridge(
             "stopTransferService" -> stopTransferService()
             "stopPairing" -> stopPairing()
             "getNativeCapabilities" -> getNativeCapabilities()
+            "sendNearbyData" -> {
+                val endpointId = payload?.optString("endpointId").orEmpty()
+                val data = payload?.optString("data").orEmpty()
+                sendNearbyData(endpointId, data)
+            }
             "setRoomContext" -> {
                 setRoomContext(
                     roomCode = payload?.optString("roomCode"),
@@ -240,6 +253,29 @@ class NativeBridge(
     fun onDestroy() {
         stopPairing()
         stopTransferService()
+    }
+
+    private fun handleNearbyData(endpointId: String, data: String) {
+        val payload = JSONObject()
+            .put("type", "nearby-data")
+            .put("endpointId", endpointId)
+            .put("data", data)
+        dispatch(payload)
+    }
+
+    private fun handleNearbyConnected(endpointId: String, endpointName: String) {
+        val payload = JSONObject()
+            .put("type", "nearby-connected")
+            .put("endpointId", endpointId)
+            .put("endpointName", endpointName)
+        dispatch(payload)
+    }
+
+    private fun handleNearbyDisconnected(endpointId: String) {
+        val payload = JSONObject()
+            .put("type", "nearby-disconnected")
+            .put("endpointId", endpointId)
+        dispatch(payload)
     }
 
     private fun resumePendingAction() {
@@ -352,5 +388,3 @@ class NativeBridge(
         }
     }
 }
-
-

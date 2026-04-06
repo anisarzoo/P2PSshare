@@ -17,11 +17,15 @@ import com.google.android.gms.nearby.connection.Payload
 import com.google.android.gms.nearby.connection.PayloadCallback
 import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import com.google.android.gms.nearby.connection.Strategy
+import org.json.JSONObject
 
 class NearbyRoomDiscoveryManager(
     context: Context,
     private val onDiscoveryHint: (NativeDiscoveryHint) -> Unit,
     private val onInfo: (String) -> Unit,
+    private val onData: (endpointId: String, payload: String) -> Unit,
+    private val onConnected: (endpointId: String, endpointName: String) -> Unit,
+    private val onDisconnected: (endpointId: String) -> Unit,
 ) {
     private val appContext = context.applicationContext
     private val connectionsClient: ConnectionsClient = Nearby.getConnectionsClient(appContext)
@@ -78,6 +82,15 @@ class NearbyRoomDiscoveryManager(
         runCatching { connectionsClient.stopAdvertising() }
         runCatching { connectionsClient.stopDiscovery() }
         runCatching { connectionsClient.stopAllEndpoints() }
+    }
+
+    fun sendData(endpointId: String, data: String) {
+        val payload = Payload.fromBytes(data.toByteArray(Charsets.UTF_8))
+        runCatching {
+            connectionsClient.sendPayload(endpointId, payload)
+        }.onFailure {
+            onInfo("Nearby sendData failed: ${it.message}")
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -159,8 +172,11 @@ class NearbyRoomDiscoveryManager(
             override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
                 val status = result.status.statusCode
                 if (status == ConnectionsStatusCodes.STATUS_OK) {
+                    val name = endpointNames[endpointId] ?: endpointId
+                    onConnected(endpointId, name)
+                    
                     localRoomCode?.let { room ->
-                        val payload = Payload.fromBytes(room.toByteArray())
+                        val payload = Payload.fromBytes("ROOM:$room".toByteArray())
                         runCatching {
                             connectionsClient.sendPayload(endpointId, payload)
                         }
@@ -173,6 +189,7 @@ class NearbyRoomDiscoveryManager(
 
             override fun onDisconnected(endpointId: String) {
                 endpointNames.remove(endpointId)
+                onDisconnected(endpointId)
                 onInfo("Nearby disconnected: $endpointId")
             }
         }
@@ -182,19 +199,23 @@ class NearbyRoomDiscoveryManager(
             override fun onPayloadReceived(endpointId: String, payload: Payload) {
                 val bytes = payload.asBytes() ?: return
                 val decoded = String(bytes, Charsets.UTF_8)
-                val code = extractRoomCode(decoded) ?: return
-                onDiscoveryHint(
-                    NativeDiscoveryHint(
-                        code = code,
-                        source = "nearby",
-                        deviceName = endpointNames[endpointId] ?: endpointId,
-                        deviceId = endpointId,
-                    ),
-                )
+                
+                if (decoded.startsWith("ROOM:")) {
+                    val code = extractRoomCode(decoded.substring(5)) ?: return
+                    onDiscoveryHint(
+                        NativeDiscoveryHint(
+                            code = code,
+                            source = "nearby",
+                            deviceName = endpointNames[endpointId] ?: endpointId,
+                            deviceId = endpointId,
+                        ),
+                    )
+                } else {
+                    onData(endpointId, decoded)
+                }
             }
 
             override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
-                // No-op: room hints use tiny byte payloads.
             }
         }
 
@@ -240,5 +261,3 @@ class NearbyRoomDiscoveryManager(
         private const val ENDPOINT_PREFIX = "SV-"
     }
 }
-
-
