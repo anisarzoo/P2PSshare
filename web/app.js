@@ -59,8 +59,6 @@ const elements = {
   hostingSection: document.getElementById('hosting-section'),
   shareSection: document.getElementById('share-section'),
   dashboardGrid: document.getElementById('dashboard-grid'),
-  webAppBanner: document.getElementById('web-app-banner'),
-  btnGetApp: document.getElementById('btn-get-app'),
   webJoinPanel: document.getElementById('web-join-panel'),
   webJoinIdInput: document.getElementById('web-join-id'),
   btnWebJoin: document.getElementById('btn-web-join'),
@@ -92,7 +90,6 @@ const elements = {
   btnPickFolder: document.getElementById('btn-pick-folder'),
   noteInbox: document.getElementById('note-inbox'),
   textNote: document.getElementById('text-note'),
-  activityLog: document.getElementById('activity-log'),
   scannerModal: document.getElementById('scanner-modal'),
   advancedPanel: document.getElementById('advanced-panel'),
   signalHost: document.getElementById('signal-host'),
@@ -391,16 +388,7 @@ function nowLabel() {
 }
 
 function logActivity(message, source = 'System') {
-  const line = document.createElement('li');
-  const prefix = document.createElement('span');
-  prefix.textContent = `${source} ${nowLabel()}`;
-  line.appendChild(prefix);
-  line.append(` ${message}`);
-  elements.activityLog.prepend(line);
-
-  while (elements.activityLog.children.length > 120) {
-    elements.activityLog.removeChild(elements.activityLog.lastChild);
-  }
+  console.log(`[${source} ${nowLabel()}] ${message}`);
 }
 
 function formatBytes(bytes) {
@@ -515,15 +503,8 @@ function configurePlatformMode() {
   document.body.classList.toggle('native-mode', nativeMode);
   document.body.classList.remove('web-join-mode');
 
-  if (elements.btnGetApp) {
-    elements.btnGetApp.href = state.appDownloadUrl;
-  }
-
   // Mode toggle: visible only in Android native mode
   setElementHidden(elements.shareModeToggle, !nativeMode);
-
-  // App banner: show on website (encourages app download), hide in app
-  setElementHidden(elements.webAppBanner, nativeMode);
 
   // Dashboard grid: always visible
   setElementHidden(elements.dashboardGrid, false);
@@ -561,9 +542,6 @@ function applyShareMode(mode) {
     elements.btnModeOnline.classList.toggle('active', online);
     elements.btnModeOnline.setAttribute('aria-selected', online);
   }
-
-  // Online join panel: visible when online or on website
-  setElementHidden(elements.webJoinPanel, !online);
 
   // Radar panel: only shown while actively scanning in offline mode
   if (online) {
@@ -1671,10 +1649,6 @@ function resetToSetup(options = {}) {
     setElementHidden(elements.radarPanel, true);
     updateRadarModeUI();
     setRadarStatus('Tap Receive to start nearby scan.');
-    // Re-show join panel if in online mode
-    if (state.isOnlineMode) {
-      setElementHidden(elements.webJoinPanel, false);
-    }
 
     invokeNativeAction('stopTransferService', {}, { silentIfUnavailable: true });
     invokeNativeAction('stopPairing', {}, { silentIfUnavailable: true });
@@ -2419,6 +2393,7 @@ function saveAdvancedConfig() {
   persistConfig();
   updateTransportBadge();
   logActivity('Settings saved.');
+  toggleAdvancedPanel();
 }
 
 function registerServiceWorker() {
