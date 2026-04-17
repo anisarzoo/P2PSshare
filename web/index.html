@@ -167,16 +167,18 @@
         <div class="transfer-tools">
           <button id="btn-save-all" class="btn btn-secondary" type="button" disabled>Save All (Archive)</button>
         </div>
-        <section class="history-card">
-          <h3>Transfer History</h3>
-          <div class="history-tabs">
-            <button class="history-tab active" data-history-tab="all" type="button">All</button>
-            <button class="history-tab" data-history-tab="received" type="button">Received</button>
-            <button class="history-tab" data-history-tab="sent" type="button">Sent</button>
-          </div>
-          <ul id="history-list" class="history-list"></ul>
-        </section>
         <button id="btn-disconnect" class="btn btn-ghost full">Disconnect</button>
+      </section>
+
+      <!-- Separate History Panel -->
+      <section class="panel history-panel">
+        <h2>History</h2>
+        <div class="history-tabs">
+          <button class="history-tab active" data-history-tab="all" type="button">All</button>
+          <button class="history-tab" data-history-tab="received" type="button">Received</button>
+          <button class="history-tab" data-history-tab="sent" type="button">Sent</button>
+        </div>
+        <ul id="history-list" class="history-list"></ul>
       </section>
 
 

@@ -480,7 +480,7 @@ body.web-join-mode footer {
   display: none !important;
 }
 
-.history-card {
+.history-panel {
   margin-top: 24px;
 }
 
@@ -505,6 +505,7 @@ body.web-join-mode footer {
   background: var(--brand-mid);
   color: #fff;
 }
+
 
 .history-list {
   list-style: none;

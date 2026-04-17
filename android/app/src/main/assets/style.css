@@ -646,12 +646,8 @@ body.web-join-mode footer {
   margin-top: 10px;
 }
 
-.history-card {
-  margin-top: 14px;
-  border: 1px solid rgba(7, 69, 63, 0.16);
-  border-radius: 16px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.7);
+.history-panel {
+  margin-top: 24px;
 }
 
 .history-tabs {
@@ -675,16 +671,17 @@ body.web-join-mode footer {
   border-color: rgba(22, 159, 144, 0.36);
 }
 
+
 .history-list {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   padding: 0;
   display: grid;
   gap: 8px;
-  max-height: 220px;
+  max-height: 280px;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-right: 4px; /* Give space for the scrollbar */
+  padding-right: 4px;
 }
 
 .history-empty {
