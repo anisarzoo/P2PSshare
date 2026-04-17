@@ -9,9 +9,12 @@ android/.android-user-home/
 build/
 *.iml
 local.properties
+# IDEs
+.vscode/
 .idea/
 
-# Windows
+# Windows Build
+windows/
 bin/
 obj/
 *.user
