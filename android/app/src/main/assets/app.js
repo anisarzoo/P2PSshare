@@ -22,12 +22,30 @@ const MAX_RECEIVED_ARCHIVE_ITEMS = 300;
 const JSZIP_CDN_URL = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
 const DEFAULT_APP_DOWNLOAD_URL = 'https://play.google.com/store/apps/details?id=com.ShareVia.app';
 const TRANSIENT_PEER_ERROR_TYPES = new Set(['network', 'server-error', 'socket-error', 'socket-closed', 'disconnected']);
+const V2_API = Object.freeze({
+  magicLinkRequest: '/v2/auth/magic-link/request',
+  magicLinkVerify: '/v2/auth/magic-link/verify',
+  deviceLinkStart: '/v2/device/link/start',
+  deviceLinkConfirm: '/v2/device/link/confirm',
+  iceConfig: '/v2/config/ice',
+  realtime: '/v2/realtime',
+});
+const LEGACY_TO_V2_EVENT = Object.freeze({
+  'file-start': 'transfer.start',
+  'file-chunk': 'transfer.chunk',
+  'file-end': 'transfer.end',
+  'file-ack': 'transfer.ack',
+  'file-cancel': 'transfer.cancel',
+  'text-note': 'transfer.note',
+});
 
 const state = {
   peer: null,
   connections: new Map(),
   myId: '',
   pendingJoinId: null,
+  profileName: localStorage.getItem('sv_profile_name') || '',
+  profileAvatar: localStorage.getItem('sv_profile_avatar') || '',
   html5QrCode: null,
   isResetting: false,
   config: loadConfig(),
@@ -48,7 +66,7 @@ const state = {
   historyFilter: 'all',
   receivedArchiveItems: [],
   webJoinOnly: false,
-  isOnlineMode: false,
+
   appDownloadUrl: DEFAULT_APP_DOWNLOAD_URL,
 };
 
@@ -66,20 +84,10 @@ const elements = {
   btnWebJoin: document.getElementById('btn-web-join'),
   btnWebScan: document.getElementById('btn-web-scan'),
   btnDashboardSend: document.getElementById('btn-dashboard-send'),
-  btnDashboardReceive: document.getElementById('btn-dashboard-receive'),
-  radarPanel: document.getElementById('radar-panel'),
-  radarPulse: document.getElementById('radar-pulse'),
-  radarStatus: document.getElementById('radar-status'),
-  nearbyDeviceList: document.getElementById('nearby-device-list'),
-  btnShowMyCode: document.getElementById('btn-show-my-code'),
-  btnShareOnlineLink: document.getElementById('btn-share-online-link'),
-  btnScan: document.getElementById('btn-scan'),
-  joinInline: document.getElementById('join-inline'),
   statusBadge: document.getElementById('status-badge'),
   transportBadge: document.getElementById('transport-badge'),
   myPeerId: document.getElementById('my-peer-id'),
   remotePeerId: document.getElementById('remote-peer-id'),
-  joinIdInput: document.getElementById('join-id'),
   qrcodeContainer: document.getElementById('qrcode-container'),
   transferList: document.getElementById('transfer-list'),
   dropZone: document.getElementById('drop-zone'),
@@ -105,25 +113,8 @@ const elements = {
   iceTurnCredential: document.getElementById('ice-turn-credential'),
   chunkSize: document.getElementById('chunk-size'),
   ackEvery: document.getElementById('ack-every'),
-  technicalCapabilities: document.getElementById('technical-capabilities'),
-  capabilityNote: document.getElementById('capability-note'),
-  capabilityGrid: document.getElementById('capability-grid'),
-  nativeActions: document.getElementById('native-actions'),
-  btnNativeWifi: document.getElementById('btn-native-wifi'),
-  btnNativeBluetooth: document.getElementById('btn-native-bluetooth'),
-  btnNativeNfc: document.getElementById('btn-native-nfc'),
-  btnNativeLocation: document.getElementById('btn-native-location'),
   btnAdvanced: document.getElementById('btn-advanced'),
   formSettings: document.getElementById('form-settings'),
-  capWebrtc: document.getElementById('cap-webrtc'),
-  capWifi: document.getElementById('cap-wifi'),
-  capBluetooth: document.getElementById('cap-bluetooth'),
-  capNfc: document.getElementById('cap-nfc'),
-  capLocation: document.getElementById('cap-location'),
-  capNative: document.getElementById('cap-native'),
-  shareModeToggle: document.getElementById('share-mode-toggle'),
-  btnModeOffline: document.getElementById('btn-mode-offline'),
-  btnModeOnline: document.getElementById('btn-mode-online'),
 };
 
 let initializeDone = false;
@@ -152,6 +143,65 @@ function loadConfig() {
 
 function persistConfig() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.config));
+}
+
+function resolveV2ApiBase() {
+  const secure = Boolean(state.config.signalingSecure);
+  const host = String(state.config.signalingHost || '').trim();
+  const port = String(state.config.signalingPort || '').trim();
+  if (!host) {
+    return '';
+  }
+  const protocol = secure ? 'https' : 'http';
+  const defaultPort = secure ? '443' : '80';
+  return `${protocol}://${host}${port && port !== defaultPort ? `:${port}` : ''}`;
+}
+
+function mapLegacyEventToV2(eventType) {
+  return LEGACY_TO_V2_EVENT[eventType] || eventType;
+}
+
+async function callV2Api(path, method = 'GET', body = undefined) {
+  const base = resolveV2ApiBase();
+  if (!base) {
+    throw new Error('Missing signaling host config for V2 API.');
+  }
+
+  const response = await fetch(`${base}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.error || `V2 API ${path} failed`);
+  }
+
+  return payload;
+}
+
+async function syncIceConfigFromV2() {
+  try {
+    const payload = await callV2Api(V2_API.iceConfig);
+    if (!Array.isArray(payload.iceServers)) {
+      return;
+    }
+
+    const stunServer = payload.iceServers.find((entry) => Array.isArray(entry.urls) && entry.urls.length);
+    if (stunServer && Array.isArray(stunServer.urls) && stunServer.urls.length > 0) {
+      state.config.iceStunUrl = String(stunServer.urls[0] || state.config.iceStunUrl).trim();
+      if (elements.iceStunUrl) {
+        elements.iceStunUrl.value = state.config.iceStunUrl;
+      }
+      persistConfig();
+      logActivity('Loaded ICE config from V2 backend.', 'System');
+    }
+  } catch (error) {
+    logActivity('Could not load V2 ICE config. Using local settings.', 'Warning');
+  }
 }
 
 function loadTransferHistory() {
@@ -359,12 +409,7 @@ function buildIceConfig() {
 }
 
 function updateTransportBadge() {
-  const isCustomHost = Boolean(state.config.signalingHost);
-  if (hasNativeBridge()) {
-    elements.transportBadge.textContent = isCustomHost ? 'LAN + Online Ready' : 'Local + Online Ready';
-    return;
-  }
-  elements.transportBadge.textContent = isCustomHost ? 'LAN Signaling' : 'Cloud Signaling';
+  elements.transportBadge.textContent = 'Cloud Signaling';
 }
 
 function updateStatus(text, className) {
@@ -528,68 +573,18 @@ function configurePlatformMode() {
   // Dashboard grid: always visible
   setElementHidden(elements.dashboardGrid, false);
 
-  // Advanced settings: always accessible
-  setElementHidden(elements.btnAdvanced, false);
 
-  // Technical capabilities panel: always hidden in production
-  setElementHidden(elements.technicalCapabilities, true);
 
   if (elements.setupTitle) {
     elements.setupTitle.textContent = nativeMode ? 'Quick Share' : 'Share Files Online';
   }
   if (elements.setupSubtitle) {
-    elements.setupSubtitle.textContent = nativeMode
-      ? 'Toggle Offline/Online mode, then tap Send or Receive.'
-      : 'Send or receive files with anyone, anywhere. No account needed.';
+    elements.setupSubtitle.textContent = 'Send or receive files with anyone, anywhere. No account needed.';
   }
 
-  // Android starts in offline mode; website starts in online mode
-  applyShareMode(nativeMode ? 'offline' : 'online');
-}
 
-function applyShareMode(mode) {
-  const online = mode === 'online';
-  const nativeMode = hasNativeBridge();
-  state.isOnlineMode = online;
 
-  // Toggle button ARIA + active state
-  if (elements.btnModeOffline) {
-    elements.btnModeOffline.classList.toggle('active', !online);
-    elements.btnModeOffline.setAttribute('aria-selected', !online);
-  }
-  if (elements.btnModeOnline) {
-    elements.btnModeOnline.classList.toggle('active', online);
-    elements.btnModeOnline.setAttribute('aria-selected', online);
-  }
 
-  // Online join panel: visible when online or on website
-  setElementHidden(elements.webJoinPanel, !online);
-
-  // Radar panel: only shown while actively scanning in offline mode
-  if (online) {
-    setElementHidden(elements.radarPanel, true);
-  }
-
-  // Dashboard card copy text update
-  if (elements.btnDashboardSend) {
-    const copy = elements.btnDashboardSend.querySelector('.dashboard-copy');
-    if (copy) {
-      copy.textContent = online
-        ? 'Create room & share link'
-        : 'Broadcast nearby via Wi-Fi & Bluetooth';
-    }
-  }
-  if (elements.btnDashboardReceive) {
-    const copy = elements.btnDashboardReceive.querySelector('.dashboard-copy');
-    if (copy) {
-      copy.textContent = online
-        ? 'Join with code or QR'
-        : 'Auto-scan nearby devices';
-    }
-  }
-
-  logActivity(`Mode switched to: ${online ? 'Online (cloud P2P)' : 'Offline (nearby discovery)'}.`);
-}
 
 async function disableBrowserOfflineCache() {
   if (!('serviceWorker' in navigator)) {
@@ -631,80 +626,31 @@ function applyNativeSafeTopInset() {
   document.documentElement.style.setProperty('--safe-top', `${safeTop}px`);
 }
 
-function detectCapabilities() {
-  const nativeMode = hasNativeBridge();
-  const webrtcSupported = Boolean(window.RTCPeerConnection);
 
-  setCapabilityChip(elements.capWebrtc, 'WebRTC', webrtcSupported, webrtcSupported ? 'supported' : 'missing');
-  setCapabilityChip(elements.capWifi, 'Wi-Fi', nativeMode, nativeMode ? 'native app available' : 'native app required');
-  setCapabilityChip(elements.capBluetooth, 'Bluetooth', nativeMode, nativeMode ? 'native app available' : 'native app required');
-  setCapabilityChip(elements.capNfc, 'NFC', nativeMode, nativeMode ? 'native app available' : 'native app required');
-  setCapabilityChip(elements.capLocation, 'Location', nativeMode, nativeMode ? 'native app available' : 'native app required');
-  setCapabilityChip(elements.capNative, 'Native Bridge', nativeMode, nativeMode ? 'app mode' : 'web mode');
 
-  if (elements.capabilityNote) {
-    elements.capabilityNote.textContent = nativeMode
-      ? 'Native app mode detected. Pairing helpers and hardware permissions are enabled here.'
-      : 'Browser mode detected. Use the Android app for Bluetooth/NFC pairing, background transfers, and OS-level permissions.';
-  }
-
-  document.body.classList.toggle('native-mode', nativeMode);
-
-  // Keep technical feature chips hidden in production UI.
-  setElementHidden(elements.technicalCapabilities, true);
-
-  if (!nativeMode) {
-    setElementHidden(elements.btnNativeWifi, true);
-    setElementHidden(elements.btnNativeBluetooth, true);
-    setElementHidden(elements.btnNativeLocation, true);
-    setElementHidden(elements.btnNativeNfc, !Boolean(window.NDEFReader));
-    return;
-  }
-
-  setElementHidden(elements.btnNativeWifi, false);
-  setElementHidden(elements.btnNativeBluetooth, false);
-  setElementHidden(elements.btnNativeLocation, false);
-  setElementHidden(elements.btnNativeNfc, false);
-  invokeNativeAction('getNativeCapabilities', {}, { silentIfUnavailable: true });
-}
-
-function applyNativeCapabilities(data) {
-  state.nativeCapabilities = data || null;
-
-  const hasWifiHardware = !data || data.wifiSupported !== false;
-  const hasBluetoothHardware = !data || data.bluetoothSupported !== false;
-  const hasLocationHardware = !data || data.locationSupported !== false;
-  const hasNfcHardware = !data || data.nfcSupported !== false;
-
-  setElementHidden(elements.btnNativeWifi, !hasWifiHardware);
-  setElementHidden(elements.btnNativeBluetooth, !hasBluetoothHardware);
-  setElementHidden(elements.btnNativeLocation, !hasLocationHardware);
-  setElementHidden(elements.btnNativeNfc, !hasNfcHardware);
-
-  if (!hasNfcHardware) {
-    logActivity('NFC hardware not detected. NFC pairing option hidden.');
-  }
-
-  const unavailable = [];
-  if (!hasWifiHardware) unavailable.push('Wi-Fi');
-  if (!hasBluetoothHardware) unavailable.push('Bluetooth');
-  if (!hasLocationHardware) unavailable.push('Location');
-
-  if (unavailable.length > 0) {
-    logActivity(`Limited hardware support detected: ${unavailable.join(', ')}.`);
-  }
-
-  if (state.radarActive && (!hasWifiHardware || !hasBluetoothHardware)) {
-    setRadarStatus('Limited hardware support on this phone. Use QR or room code if radar results are sparse.');
-  }
-}
-
-function copyText(text, label) {
+function copyText(text, label, btnElement = null) {
   if (!text) return;
+
+  const provideFeedback = () => {
+    logActivity(`${label} copied to clipboard.`);
+    if (btnElement) {
+      const originalText = btnElement.textContent;
+      const isButton = btnElement.tagName === 'BUTTON';
+      
+      if (isButton) {
+        btnElement.textContent = 'Copied!';
+        btnElement.classList.add('copy-success');
+        setTimeout(() => {
+          btnElement.textContent = originalText;
+          btnElement.classList.remove('copy-success');
+        }, 1500);
+      }
+    }
+  };
 
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(() => {
-      logActivity(`${label} copied to clipboard.`);
+      provideFeedback();
     }).catch((error) => {
       console.warn('Clipboard write failed', error);
       logActivity(`Could not copy ${label.toLowerCase()} automatically.`, 'Warning');
@@ -718,206 +664,19 @@ function copyText(text, label) {
   input.select();
   try {
     document.execCommand('copy');
-    logActivity(`${label} copied to clipboard.`);
+    provideFeedback();
   } catch (error) {
+    console.warn('ExecCommand copy failed', error);
     logActivity(`Could not copy ${label.toLowerCase()} automatically.`, 'Warning');
   }
   document.body.removeChild(input);
 }
 
-function invokeNativeAction(action, payload = {}, options = {}) {
-  const silentIfUnavailable = Boolean(options.silentIfUnavailable);
-  const hasPayload = payload && typeof payload === 'object' && Object.keys(payload).length > 0;
 
-  try {
-    if (!hasPayload && window.NativeP2PBridge && typeof window.NativeP2PBridge[action] === 'function') {
-      window.NativeP2PBridge[action]();
-      logActivity(`Native action requested: ${action}`);
-      return true;
-    }
 
-    if (window.NativeP2PBridge && typeof window.NativeP2PBridge.postMessage === 'function') {
-      window.NativeP2PBridge.postMessage(JSON.stringify({ action, ...payload }));
-      logActivity(`Native bridge postMessage requested: ${action}`);
-      return true;
-    }
 
-    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.NativeP2PBridge) {
-      window.webkit.messageHandlers.NativeP2PBridge.postMessage({ action, ...payload });
-      logActivity(`iOS bridge action requested: ${action}`);
-      return true;
-    }
 
-    if (window.chrome && window.chrome.webview) {
-      window.chrome.webview.postMessage({ action, ...payload });
-      logActivity(`Windows bridge action requested: ${action}`);
-      return true;
-    }
-  } catch (error) {
-    console.error(error);
-    logActivity(`Native action failed: ${action}`, 'Warning');
-    return false;
-  }
 
-  if (!silentIfUnavailable) {
-    logActivity(`Native bridge unavailable for action: ${action}`, 'Warning');
-  }
-  return false;
-}
-
-function setRadarStatus(message) {
-  if (!elements.radarStatus) return;
-  elements.radarStatus.textContent = message;
-}
-
-function clearNearbyDevices() {
-  state.nearbyDevices.clear();
-  renderNearbyDevices();
-}
-
-function updateRadarModeUI() {
-  const sendMode = state.dashboardMode === 'send';
-  setElementHidden(elements.btnShowMyCode, !sendMode);
-  setElementHidden(elements.btnShareOnlineLink, !sendMode);
-  setElementHidden(elements.joinInline, sendMode);
-  setElementHidden(elements.btnScan, sendMode);
-}
-
-function renderNearbyDevices() {
-  if (!elements.nearbyDeviceList) return;
-
-  const items = Array.from(state.nearbyDevices.values())
-    .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
-    .slice(0, 25);
-
-  elements.nearbyDeviceList.innerHTML = '';
-
-  if (!items.length) {
-    const empty = document.createElement('li');
-    empty.className = 'nearby-empty';
-    empty.textContent = state.radarActive
-      ? (state.dashboardMode === 'send'
-        ? 'Searching for nearby receivers...'
-        : 'Searching for nearby senders...')
-      : 'No nearby devices yet.';
-    elements.nearbyDeviceList.appendChild(empty);
-    return;
-  }
-
-  items.forEach((device) => {
-    const item = document.createElement('li');
-    item.className = 'nearby-item';
-
-    const main = document.createElement('div');
-    main.className = 'nearby-main';
-
-    const left = document.createElement('div');
-    const name = document.createElement('div');
-    name.className = 'nearby-name';
-    name.textContent = device.deviceName || `Nearby device ${device.code}`;
-    left.appendChild(name);
-
-    const meta = document.createElement('div');
-    meta.className = 'nearby-meta';
-    meta.textContent = `${device.sourceLabel} • ${device.code} • seen ${formatClockTime(device.lastSeenAt)}`;
-    left.appendChild(meta);
-
-    const connectBtn = document.createElement('button');
-    connectBtn.className = 'btn btn-secondary';
-    connectBtn.type = 'button';
-    if (state.dashboardMode === 'receive') {
-      connectBtn.textContent = 'Connect';
-      connectBtn.addEventListener('click', () => {
-        joinRoom(device.code);
-      });
-    } else {
-      connectBtn.textContent = 'Detected';
-      connectBtn.disabled = true;
-    }
-
-    main.appendChild(left);
-    main.appendChild(connectBtn);
-    item.appendChild(main);
-    elements.nearbyDeviceList.appendChild(item);
-  });
-}
-
-function upsertNearbyDevice(data) {
-  const code = extractRoomId(data.code);
-  if (!code) return;
-
-  const source = String(data.source || 'native');
-  const sourceLabelMap = {
-    bluetooth: 'Bluetooth',
-    ble: 'Bluetooth',
-    nearby: 'Wi-Fi Direct',
-    wifi: 'Wi-Fi',
-    'wifi-fingerprint': 'Wi-Fi Hint',
-    location: 'Location Hint',
-    'location-room': 'Location Hint',
-    nfc: 'NFC',
-  };
-
-  const key = String(data.deviceId || `${source}:${code}:${String(data.deviceName || '').trim()}`);
-  const current = state.nearbyDevices.get(key) || {};
-  const next = {
-    key,
-    code,
-    source,
-    sourceLabel: sourceLabelMap[source] || source,
-    deviceName: normalizeDeviceName(data.deviceName, code) || current.deviceName || '',
-    lastSeenAt: Date.now(),
-  };
-
-  state.nearbyDevices.set(key, next);
-  renderNearbyDevices();
-}
-
-function normalizeDeviceName(rawName, code) {
-  const value = String(rawName || '').trim();
-  if (!value) return '';
-  if (value === code) return '';
-  if (value.toUpperCase() === `CV-${code}`) return '';
-  return value;
-}
-
-function startOfflineRadarDiscovery(mode = 'receive') {
-  state.radarActive = true;
-  state.radarScanStartedAt = Date.now();
-  state.dashboardMode = mode === 'send' ? 'send' : 'receive';
-  setElementHidden(elements.radarPanel, false);
-  updateRadarModeUI();
-  clearNearbyDevices();
-  setRadarStatus(state.dashboardMode === 'send'
-    ? 'Searching nearby receivers...'
-    : 'Searching nearby senders...');
-
-  const nativeMode = hasNativeBridge();
-  if (!nativeMode) {
-    setRadarStatus('Nearby search requires the app for full hardware scan. Use QR or room code in browser mode.');
-    return;
-  }
-
-  if (state.dashboardMode === 'send' && state.myId) {
-    invokeNativeAction(
-      'setRoomContext',
-      { roomCode: state.myId, role: 'host', targetRoom: '' },
-      { silentIfUnavailable: true },
-    );
-  }
-
-  invokeNativeAction('startWifiPairing', {}, { silentIfUnavailable: true });
-  invokeNativeAction('startBluetoothPairing', {}, { silentIfUnavailable: true });
-  invokeNativeAction('startLocationPairing', {}, { silentIfUnavailable: true });
-  logActivity(state.dashboardMode === 'send'
-    ? 'Send radar started (Wi-Fi + Bluetooth + location hints).'
-    : 'Receive radar started (Wi-Fi + Bluetooth + location hints).');
-}
-
-function stopOfflineRadarDiscovery() {
-  state.radarActive = false;
-  invokeNativeAction('stopPairing', {}, { silentIfUnavailable: true });
-}
 
 async function getJsZipCtor() {
   if (window.JSZip) {
@@ -1208,15 +967,7 @@ function initPeer(preferredId = undefined) {
     generateQRCode(id);
 
     const joiningTarget = state.pendingJoinId;
-    invokeNativeAction(
-      'setRoomContext',
-      {
-        roomCode: id,
-        role: joiningTarget ? 'joiner' : 'host',
-        targetRoom: joiningTarget || '',
-      },
-      { silentIfUnavailable: true },
-    );
+
 
     if (joiningTarget) {
       const target = joiningTarget;
@@ -1228,15 +979,10 @@ function initPeer(preferredId = undefined) {
       return;
     }
 
-    if (state.dashboardMode === 'send') {
-      startOfflineRadarDiscovery('send');
-      setRadarStatus('Searching nearby devices. If needed, use QR/code or share online link.');
-    }
-
     state.wasHosting = true;
     state.lastRoomId = id;
     updateStatus('Waiting', 'waiting');
-    logActivity(`Room ${id} is online and waiting.`);
+    logActivity(`Room ${id} is ready.`);
   });
 
   state.peer.on('connection', (incoming) => {
@@ -1303,8 +1049,7 @@ function handlePeerError(error) {
   console.error('Peer error:', error);
 
   if (error && error.type === 'peer-unavailable') {
-    alert('Room was not found or is offline. Ask sender to keep ShareVia open and share a new code/link.');
-    logActivity('Room unavailable or offline.', 'Warning');
+    logActivity('Room unavailable or not found.', 'Warning');
     resetToSetup({ destroyPeer: true });
     return;
   }
@@ -1399,36 +1144,15 @@ function beginSendDiscovery() {
     return;
   }
 
-  // Online mode (or website): create a room and host
-  if (state.isOnlineMode || !hasNativeBridge()) {
-    const roomId = generateRoomCode();
-    state.dashboardMode = 'send';
-    state.pendingJoinId = null;
-    state.lastJoinRoomId = null;
-    state.wasHosting = true;
-    state.lastRoomId = roomId;
-    stopOfflineRadarDiscovery();
-    showSection(elements.hostingSection);
-    updateStatus('Creating room', 'waiting');
-    logActivity(`Creating online room ${roomId}.`);
-    initPeer(roomId);
-    return;
-  }
-
-  // Offline mode (Android): launch radar in send mode
   const roomId = generateRoomCode();
   state.dashboardMode = 'send';
   state.pendingJoinId = null;
   state.lastJoinRoomId = null;
   state.wasHosting = true;
   state.lastRoomId = roomId;
-  showSection(elements.setupSection);
-  setElementHidden(elements.radarPanel, false);
-  updateRadarModeUI();
-  clearNearbyDevices();
-  setRadarStatus('Preparing sender room and scanning nearby devices...');
-  updateStatus('Preparing', 'waiting');
-  logActivity(`Preparing offline sender room ${roomId}.`);
+  showSection(elements.hostingSection);
+  updateStatus('Creating room', 'waiting');
+  logActivity(`Creating room ${roomId}.`);
   initPeer(roomId);
 }
 
@@ -1438,28 +1162,13 @@ function beginReceiveDiscovery() {
     return;
   }
 
-  // Online mode (or website): show the join-code panel
-  if (state.isOnlineMode || !hasNativeBridge()) {
-    setElementHidden(elements.webJoinPanel, false);
-    showSection(elements.setupSection);
-    elements.webJoinIdInput && elements.webJoinIdInput.focus();
-    updateStatus('Join Online', 'waiting');
-    return;
-  }
-
-  // Offline mode (Android): launch nearby radar
-  if (state.peer && !state.peer.destroyed) {
-    try { state.peer.destroy(); } catch (e) { console.warn(e); }
-    state.peer = null;
-    state.myId = '';
-  }
-  startOfflineRadarDiscovery('receive');
-  updateStatus('Searching', 'waiting');
+  elements.webJoinIdInput && elements.webJoinIdInput.focus();
+  updateStatus('Joining', 'waiting');
 }
 
-function shareOnlineLink() {
+function shareRoomLink() {
   if (!state.myId) {
-    alert('Sender room is still starting. Please try again in a moment.');
+    alert('Room is still starting. Please try again in a moment.');
     return;
   }
 
@@ -1473,7 +1182,7 @@ function shareOnlineLink() {
     return;
   }
 
-  copyText(link, 'Join link');
+  copyText(link, 'Join link', elements.btnShareOnlineLink);
 }
 
 function joinRoom(inputRoomId) {
@@ -1542,9 +1251,7 @@ function handlePeerConnectionClosed(peerId, options = {}) {
     return;
   }
 
-  if (options.showSenderOfflineHint !== false) {
-    logActivity('Peer disconnected. Realtime transfer requires sender to stay online.', 'Warning');
-  }
+
   resetToSetup({ destroyPeer: true });
 }
 
@@ -1614,8 +1321,6 @@ function setupConnection(connection, sourceLabel) {
     updateStatus('Connected', 'connected');
     const openCount = getOpenConnections().length;
     logActivity(`${sourceLabel} connection open with ${normalizePeerLabel(peerId)}${openCount > 1 ? ` (${openCount} peers connected)` : ''}.`);
-    stopOfflineRadarDiscovery();
-    invokeNativeAction('startTransferService', {}, { silentIfUnavailable: true });
     announceCapabilities(peerId);
   });
 
@@ -1667,18 +1372,10 @@ function resetToSetup(options = {}) {
     state.wasHosting = false;
     state.lastRoomId = null;
     state.lastJoinRoomId = null;
-    clearNearbyDevices();
     setElementHidden(elements.radarPanel, true);
-    updateRadarModeUI();
-    setRadarStatus('Tap Receive to start nearby scan.');
-    // Re-show join panel if in online mode
-    if (state.isOnlineMode) {
-      setElementHidden(elements.webJoinPanel, false);
-    }
 
-    invokeNativeAction('stopTransferService', {}, { silentIfUnavailable: true });
-    invokeNativeAction('stopPairing', {}, { silentIfUnavailable: true });
-    invokeNativeAction('setRoomContext', { roomCode: '', role: 'idle', targetRoom: '' }, { silentIfUnavailable: true });
+    // Re-show join panel
+    setElementHidden(elements.webJoinPanel, false);
 
     closeAllConnections();
 
@@ -1802,7 +1499,11 @@ function cancelTransfer(id, direction) {
   }
 
   if (targetPeerId) {
-    sendToPeer(targetPeerId, { type: 'file-cancel', transferId: rawTransferId }, { silent: true });
+    sendToPeer(
+      targetPeerId,
+      { type: 'file-cancel', v2Type: mapLegacyEventToV2('file-cancel'), transferId: rawTransferId },
+      { silent: true },
+    );
   }
 
   markTransferCancelled(id);
@@ -1969,6 +1670,7 @@ function handleIncomingFileChunk(payload, fromPeerId = '') {
   if (record.receivedChunks % state.config.ackEvery === 0 || record.receivedChunks === record.totalChunks) {
     sendToPeer(fromPeerId, {
       type: 'file-ack',
+      v2Type: mapLegacyEventToV2('file-ack'),
       transferId,
       receivedChunks: record.receivedChunks,
       receivedBytes: record.receivedBytes,
@@ -2097,14 +1799,15 @@ async function sendSelectedFiles(fileList, items, options = {}) {
     return;
   }
 
+  const isMultiple = fileEntries.length > 1;
   const hasFolderShape =
     options.source === 'folder' ||
     fileEntries.some((entry) => String(entry.relativePath || '').includes('/'));
 
-  if (hasFolderShape) {
+  if (hasFolderShape || isMultiple) {
     const zipped = await zipFileEntries(fileEntries);
     if (zipped) {
-      logActivity(`Folder bundled as ${zipped.name} (${fileEntries.length} files).`);
+      logActivity(`${hasFolderShape ? 'Folder' : 'Multiple files'} bundled as ${zipped.name} (${fileEntries.length} items).`);
       await sendFile(zipped, { bundledFromFolder: true });
       return;
     }
@@ -2196,6 +1899,7 @@ async function sendFileToPeer(connection, file, options = {}) {
 
   const started = safeSendToConnection(connection, {
     type: 'file-start',
+    v2Type: mapLegacyEventToV2('file-start'),
     transferId,
     name: file.name,
     size: file.size,
@@ -2230,6 +1934,7 @@ async function sendFileToPeer(connection, file, options = {}) {
 
     const sent = safeSendToConnection(connection, {
       type: 'file-chunk',
+      v2Type: mapLegacyEventToV2('file-chunk'),
       transferId,
       index,
       chunk,
@@ -2260,6 +1965,7 @@ async function sendFileToPeer(connection, file, options = {}) {
 
   safeSendToConnection(connection, {
     type: 'file-end',
+    v2Type: mapLegacyEventToV2('file-end'),
     transferId,
   }, { silent: true });
 
@@ -2302,6 +2008,7 @@ function queueNote() {
 
   safeSend({
     type: 'text-note',
+    v2Type: mapLegacyEventToV2('text-note'),
     text,
   }, { silent: true });
 
@@ -2426,18 +2133,14 @@ function registerServiceWorker() {
     return; // Native app uses local assets; no cache management needed
   }
 
-  disableBrowserOfflineCache().then(() => {
-    logActivity('Online mode active. Offline cache cleared for fresh updates.');
-  });
+  disableBrowserOfflineCache();
 }
 
 function bindEvents() {
   elements.btnDashboardSend && elements.btnDashboardSend.addEventListener('click', beginSendDiscovery);
-  elements.btnDashboardReceive && elements.btnDashboardReceive.addEventListener('click', beginReceiveDiscovery);
   elements.btnWebJoin && elements.btnWebJoin.addEventListener('click', () => joinRoom(elements.webJoinIdInput.value));
   elements.btnWebScan && elements.btnWebScan.addEventListener('click', startScanner);
-  elements.btnModeOffline && elements.btnModeOffline.addEventListener('click', () => applyShareMode('offline'));
-  elements.btnModeOnline && elements.btnModeOnline.addEventListener('click', () => applyShareMode('online'));
+
 
   elements.btnScan && elements.btnScan.addEventListener('click', startScanner);
   document.getElementById('btn-close-scanner').addEventListener('click', stopScanner);
@@ -2451,19 +2154,16 @@ function bindEvents() {
   });
   document.getElementById('btn-send-note').addEventListener('click', queueNote);
   elements.btnShowMyCode && elements.btnShowMyCode.addEventListener('click', hostRoom);
-  elements.btnShareOnlineLink && elements.btnShareOnlineLink.addEventListener('click', shareOnlineLink);
+  elements.btnShareOnlineLink && elements.btnShareOnlineLink.addEventListener('click', shareRoomLink);
 
-  elements.btnNativeWifi && elements.btnNativeWifi.addEventListener('click', () => invokeNativeAction('startWifiPairing'));
-  elements.btnNativeBluetooth && elements.btnNativeBluetooth.addEventListener('click', () => invokeNativeAction('startBluetoothPairing'));
-  elements.btnNativeNfc && elements.btnNativeNfc.addEventListener('click', () => invokeNativeAction('startNfcPairing'));
-  elements.btnNativeLocation && elements.btnNativeLocation.addEventListener('click', () => invokeNativeAction('startLocationPairing'));
 
-  document.getElementById('btn-copy-code').addEventListener('click', () => {
-    copyText(state.myId, 'Room code');
+
+  document.getElementById('btn-copy-code').addEventListener('click', (e) => {
+    copyText(state.myId, 'Room code', e.currentTarget);
   });
 
-  document.getElementById('btn-copy-link').addEventListener('click', () => {
-    copyText(generateJoinUrl(state.myId), 'Join link');
+  document.getElementById('btn-copy-link').addEventListener('click', (e) => {
+    copyText(generateJoinUrl(state.myId), 'Join link', e.currentTarget);
   });
 
   elements.btnSaveAll && elements.btnSaveAll.addEventListener('click', saveAllReceivedArchive);
@@ -2546,18 +2246,11 @@ function initialize() {
   configurePlatformMode();
 
   applyConfigToUI();
+  syncIceConfigFromV2();
   updateTransportBadge();
   updateStatus('Disconnected', 'disconnected');
-  setElementHidden(elements.radarPanel, true);
-  updateRadarModeUI();
-  setRadarStatus('Tap Receive to start nearby scan.');
+
   bindEvents();
-  try {
-    detectCapabilities();
-  } catch (error) {
-    console.error('Capability detection failed:', error);
-    logActivity('Capability detection failed. Basic mode is active.', 'Warning');
-  }
   setHistoryFilter('all');
   updateSaveAllButtonState();
   applyNativeSafeTopInset();
@@ -2567,6 +2260,7 @@ function initialize() {
     window.visualViewport.addEventListener('scroll', applyNativeSafeTopInset);
   }
   registerServiceWorker();
+  setupSidebarEvents();
 
   // Mobile tab suspension resilience: when user returns from WhatsApp etc.,
   // check if the peer is still alive and reconnect if needed
@@ -2596,3 +2290,56 @@ if (document.readyState === 'loading') {
 
 
 
+
+
+function setupSidebarEvents() {
+  if (!elements.btnMenuOpen) return;
+  
+  // Load initial profile data to UI
+  if (state.profileName) elements.profileNameInput.value = state.profileName;
+  if (state.profileAvatar) elements.profileAvatarPreview.src = state.profileAvatar;
+
+  // Open/Close
+  elements.btnMenuOpen.addEventListener('click', () => {
+    elements.sidebarOverlay.classList.remove('hidden');
+    elements.sidebarMenu.classList.remove('closed');
+  });
+  
+  const closeMenu = () => {
+    elements.sidebarOverlay.classList.add('hidden');
+    elements.sidebarMenu.classList.add('closed');
+  };
+  
+  elements.btnMenuClose.addEventListener('click', closeMenu);
+  elements.sidebarOverlay.addEventListener('click', closeMenu);
+  
+  // Save Profile
+  elements.btnSaveProfile.addEventListener('click', () => {
+    const name = elements.profileNameInput.value.trim();
+    state.profileName = name;
+    localStorage.setItem('sv_profile_name', name);
+    alert('Profile saved successfully!');
+    elements.btnSaveProfile.textContent = "Saved ?";
+    setTimeout(() => { elements.btnSaveProfile.textContent = "Save"; }, 2000);
+  });
+  
+  // Avatar logic
+  elements.btnChangeAvatar.addEventListener('click', () => {
+    elements.profileAvatarInput.click();
+  });
+  
+  elements.profileAvatarInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const url = event.target.result;
+        state.profileAvatar = url;
+        localStorage.setItem('sv_profile_avatar', url);
+        elements.profileAvatarPreview.src = url;
+    };
+    reader.readAsDataURL(file);
+  });
+  
+}
+}

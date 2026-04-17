@@ -66,7 +66,7 @@ const state = {
   historyFilter: 'all',
   receivedArchiveItems: [],
   webJoinOnly: false,
-  isOnlineMode: false,
+
   appDownloadUrl: DEFAULT_APP_DOWNLOAD_URL,
 };
 
@@ -409,12 +409,7 @@ function buildIceConfig() {
 }
 
 function updateTransportBadge() {
-  const isCustomHost = Boolean(state.config.signalingHost);
-  if (hasNativeBridge()) {
-    elements.transportBadge.textContent = isCustomHost ? 'LAN + Online Ready' : 'Local + Online Ready';
-    return;
-  }
-  elements.transportBadge.textContent = isCustomHost ? 'LAN Signaling' : 'Cloud Signaling';
+  elements.transportBadge.textContent = 'Cloud Signaling';
 }
 
 function updateStatus(text, className) {
@@ -578,11 +573,7 @@ function configurePlatformMode() {
   // Dashboard grid: always visible
   setElementHidden(elements.dashboardGrid, false);
 
-  // Advanced settings: always accessible
-  setElementHidden(elements.btnAdvanced, false);
 
-  // Technical capabilities panel: always hidden in production
-  setElementHidden(elements.technicalCapabilities, true);
 
   if (elements.setupTitle) {
     elements.setupTitle.textContent = nativeMode ? 'Quick Share' : 'Share Files Online';
@@ -635,73 +626,7 @@ function applyNativeSafeTopInset() {
   document.documentElement.style.setProperty('--safe-top', `${safeTop}px`);
 }
 
-function detectCapabilities() {
-  const nativeMode = hasNativeBridge();
-  const webrtcSupported = Boolean(window.RTCPeerConnection);
 
-  setCapabilityChip(elements.capWebrtc, 'WebRTC', webrtcSupported, webrtcSupported ? 'supported' : 'missing');
-  setCapabilityChip(elements.capWifi, 'Wi-Fi', nativeMode, nativeMode ? 'native app available' : 'native app required');
-  setCapabilityChip(elements.capBluetooth, 'Bluetooth', nativeMode, nativeMode ? 'native app available' : 'native app required');
-  setCapabilityChip(elements.capNfc, 'NFC', nativeMode, nativeMode ? 'native app available' : 'native app required');
-  setCapabilityChip(elements.capLocation, 'Location', nativeMode, nativeMode ? 'native app available' : 'native app required');
-  setCapabilityChip(elements.capNative, 'Native Bridge', nativeMode, nativeMode ? 'app mode' : 'web mode');
-
-  if (elements.capabilityNote) {
-    elements.capabilityNote.textContent = nativeMode
-      ? 'Native app mode detected. Pairing helpers and hardware permissions are enabled here.'
-      : 'Browser mode detected. Use the Android app for Bluetooth/NFC pairing, background transfers, and OS-level permissions.';
-  }
-
-  document.body.classList.toggle('native-mode', nativeMode);
-
-  // Keep technical feature chips hidden in production UI.
-  setElementHidden(elements.technicalCapabilities, true);
-
-  if (!nativeMode) {
-    setElementHidden(elements.btnNativeWifi, true);
-    setElementHidden(elements.btnNativeBluetooth, true);
-    setElementHidden(elements.btnNativeLocation, true);
-    setElementHidden(elements.btnNativeNfc, !Boolean(window.NDEFReader));
-    return;
-  }
-
-  setElementHidden(elements.btnNativeWifi, false);
-  setElementHidden(elements.btnNativeBluetooth, false);
-  setElementHidden(elements.btnNativeLocation, false);
-  setElementHidden(elements.btnNativeNfc, false);
-  invokeNativeAction('getNativeCapabilities', {}, { silentIfUnavailable: true });
-}
-
-function applyNativeCapabilities(data) {
-  state.nativeCapabilities = data || null;
-
-  const hasWifiHardware = !data || data.wifiSupported !== false;
-  const hasBluetoothHardware = !data || data.bluetoothSupported !== false;
-  const hasLocationHardware = !data || data.locationSupported !== false;
-  const hasNfcHardware = !data || data.nfcSupported !== false;
-
-  setElementHidden(elements.btnNativeWifi, !hasWifiHardware);
-  setElementHidden(elements.btnNativeBluetooth, !hasBluetoothHardware);
-  setElementHidden(elements.btnNativeLocation, !hasLocationHardware);
-  setElementHidden(elements.btnNativeNfc, !hasNfcHardware);
-
-  if (!hasNfcHardware) {
-    logActivity('NFC hardware not detected. NFC pairing option hidden.');
-  }
-
-  const unavailable = [];
-  if (!hasWifiHardware) unavailable.push('Wi-Fi');
-  if (!hasBluetoothHardware) unavailable.push('Bluetooth');
-  if (!hasLocationHardware) unavailable.push('Location');
-
-  if (unavailable.length > 0) {
-    logActivity(`Limited hardware support detected: ${unavailable.join(', ')}.`);
-  }
-
-  if (state.radarActive && (!hasWifiHardware || !hasBluetoothHardware)) {
-    setRadarStatus('Limited hardware support on this phone. Use QR or room code if radar results are sparse.');
-  }
-}
 
 function copyText(text, label, btnElement = null) {
   if (!text) return;
@@ -1057,7 +982,7 @@ function initPeer(preferredId = undefined) {
     state.wasHosting = true;
     state.lastRoomId = id;
     updateStatus('Waiting', 'waiting');
-    logActivity(`Room ${id} is online and waiting.`);
+    logActivity(`Room ${id} is ready.`);
   });
 
   state.peer.on('connection', (incoming) => {
@@ -1241,9 +1166,9 @@ function beginReceiveDiscovery() {
   updateStatus('Joining', 'waiting');
 }
 
-function shareOnlineLink() {
+function shareRoomLink() {
   if (!state.myId) {
-    alert('Sender room is still starting. Please try again in a moment.');
+    alert('Room is still starting. Please try again in a moment.');
     return;
   }
 
@@ -1449,10 +1374,8 @@ function resetToSetup(options = {}) {
     state.lastJoinRoomId = null;
     setElementHidden(elements.radarPanel, true);
 
-    // Re-show join panel if in online mode
-    if (state.isOnlineMode) {
-      setElementHidden(elements.webJoinPanel, false);
-    }
+    // Re-show join panel
+    setElementHidden(elements.webJoinPanel, false);
 
     closeAllConnections();
 
@@ -2231,7 +2154,7 @@ function bindEvents() {
   });
   document.getElementById('btn-send-note').addEventListener('click', queueNote);
   elements.btnShowMyCode && elements.btnShowMyCode.addEventListener('click', hostRoom);
-  elements.btnShareOnlineLink && elements.btnShareOnlineLink.addEventListener('click', shareOnlineLink);
+  elements.btnShareOnlineLink && elements.btnShareOnlineLink.addEventListener('click', shareRoomLink);
 
 
 

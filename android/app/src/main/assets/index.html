@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>ShareVia - P2P File Transfer Online & Offline</title>
-  <meta name="description" content="Send and receive files with anyone, anywhere. Instant P2P transfer via browser — no account needed. Android app adds offline Wi-Fi & Bluetooth sharing.">
-  <meta name="sharevia-app-url" content="https://play.google.com/store/apps/details?id=com.ShareVia.app">
+  <title>ShareVia - P2P File Transfer</title>
+  <meta name="description" content="Send and receive files with anyone, anywhere. Instant P2P transfer via browser — no account needed.">
   <meta name="theme-color" content="#0d3f3a">
   <link rel="icon" type="image/png" href="icon128.png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -39,62 +38,25 @@
         <h2 id="setup-title">Share Files Online</h2>
         <p id="setup-subtitle" class="subtitle">Send or receive files with anyone, anywhere. No account needed.</p>
 
-        <div id="share-mode-toggle" class="share-mode-toggle hidden" role="tablist" aria-label="Share mode">
-          <button id="btn-mode-offline" class="mode-tab active" type="button" role="tab" aria-selected="true">📡 Offline</button>
-          <button id="btn-mode-online" class="mode-tab" type="button" role="tab" aria-selected="false">🌐 Online</button>
-        </div>
+
 
         <div id="dashboard-grid" class="dashboard-grid">
-          <button id="btn-dashboard-send" class="dashboard-card send" type="button">
-            <span class="dashboard-icon">↑</span>
-            <span class="dashboard-title">Send</span>
-            <span class="dashboard-copy">Create room &amp; share link</span>
-          </button>
-          <button id="btn-dashboard-receive" class="dashboard-card receive" type="button">
-            <span class="dashboard-icon">↓</span>
-            <span class="dashboard-title">Receive</span>
-            <span class="dashboard-copy">Join with code or QR</span>
+          <button id="btn-dashboard-send" class="dashboard-card send" type="button" style="grid-column: 1 / -1; width: 100%;">
+            <div class="dashboard-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14"/></svg>
+            </div>
+            <div class="dashboard-title">Host a Room</div>
+            <div class="dashboard-copy">Create a sharing room and get a link/QR for others to join.</div>
           </button>
         </div>
 
-        <div id="web-app-banner" class="app-banner hidden">
-          <h3>Also Available on Android</h3>
-          <p>
-            Get the ShareVia app for seamless nearby transfer via Bluetooth, Wi-Fi Direct, and NFC — no internet required.
-          </p>
-          <a id="btn-get-app" class="btn btn-primary" href="https://play.google.com/store/apps/details?id=com.ShareVia.app" target="_blank" rel="noopener noreferrer">Get The App</a>
-        </div>
 
-        <div id="radar-panel" class="radar-panel hidden">
-          <div class="radar-head">
-            <h3>Offline Radar</h3>
-            <span id="radar-pulse" class="radar-pulse"></span>
-          </div>
-          <p id="radar-status" class="radar-status">Tap <strong>Receive</strong> to start nearby scan.</p>
-          <ul id="nearby-device-list" class="nearby-device-list"></ul>
 
-          <div class="radar-actions">
-            <button id="btn-show-my-code" class="btn btn-secondary hidden" type="button">Show My QR/Code</button>
-            <button id="btn-share-online-link" class="btn btn-ghost hidden" type="button">Share Online Link</button>
-            <button id="btn-scan" class="btn btn-dark" type="button">Scan QR</button>
-          </div>
 
-          <div id="native-actions" class="native-actions hidden">
-            <button id="btn-native-wifi" class="btn btn-ghost" type="button">Wi-Fi Pairing</button>
-            <button id="btn-native-bluetooth" class="btn btn-ghost" type="button">Bluetooth Pairing</button>
-            <button id="btn-native-nfc" class="btn btn-ghost" type="button">NFC Pairing</button>
-            <button id="btn-native-location" class="btn btn-ghost" type="button">Location Hint</button>
-          </div>
 
-          <div id="join-inline" class="join-inline">
-            <input type="text" id="join-id" placeholder="Enter 6-digit room code" inputmode="numeric" maxlength="6">
-            <button id="btn-join" class="btn btn-secondary">Join</button>
-          </div>
-        </div>
-
-        <div id="web-join-panel" class="web-join-panel hidden">
+        <div id="web-join-panel" class="web-join-panel">
           <h3>Join a Transfer Room</h3>
-          <p class="subtitle">Enter a room code or scan the sender's QR to connect.</p>
+          <p class="subtitle">Enter a room code or scan a QR to connect with someone.</p>
           <div class="join-inline">
             <input type="text" id="web-join-id" placeholder="Enter 6-digit room code" inputmode="numeric" maxlength="6">
             <button id="btn-web-join" class="btn btn-secondary" type="button">Join</button>
@@ -160,18 +122,7 @@
           </form>
         </div>
 
-        <div id="technical-capabilities" class="capabilities hidden">
-          <h3>Native App Features</h3>
-          <p id="capability-note" class="capability-note"></p>
-          <div id="capability-grid" class="capability-grid">
-            <span id="cap-webrtc" class="capability-chip">WebRTC: checking</span>
-            <span id="cap-wifi" class="capability-chip">Wi-Fi: checking</span>
-            <span id="cap-bluetooth" class="capability-chip">Bluetooth: checking</span>
-            <span id="cap-nfc" class="capability-chip">NFC: checking</span>
-            <span id="cap-location" class="capability-chip">Location: checking</span>
-            <span id="cap-native" class="capability-chip">Native Bridge: checking</span>
-          </div>
-        </div>
+
       </section>
 
       <section id="hosting-section" class="panel hidden">
