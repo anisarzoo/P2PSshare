@@ -82,8 +82,6 @@ const elements = {
   btnWebJoin: document.getElementById('btn-web-join'),
   btnWebScan: document.getElementById('btn-web-scan'),
   btnDashboardSend: document.getElementById('btn-dashboard-send'),
-  statusBadge: document.getElementById('status-badge'),
-  transportBadge: document.getElementById('transport-badge'),
   myPeerId: document.getElementById('my-peer-id'),
   remotePeerId: document.getElementById('remote-peer-id'),
   qrcodeContainer: document.getElementById('qrcode-container'),
@@ -407,12 +405,11 @@ function buildIceConfig() {
 }
 
 function updateTransportBadge() {
-  elements.transportBadge.textContent = 'Cloud Signaling';
+  // Badge removed from UI
 }
 
 function updateStatus(text, className) {
-  elements.statusBadge.textContent = text;
-  elements.statusBadge.className = `status-badge ${className}`;
+  // Badge removed from UI
 }
 
 function showSection(section) {

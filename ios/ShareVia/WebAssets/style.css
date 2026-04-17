@@ -99,37 +99,6 @@ h1 {
   font-weight: 700;
 }
 
-.header-badges {
-  display: flex;
-  gap: 8px;
-}
-
-.transport-badge,
-.status-badge {
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 6px 12px;
-  border-radius: 99px;
-  background: rgba(11, 106, 97, 0.1);
-  color: var(--brand-strong);
-}
-
-.status-badge.disconnected {
-  background: rgba(200, 67, 52, 0.1);
-  color: var(--danger);
-}
-
-.status-badge.connected {
-  background: #e6f7ef;
-  color: #0d8c57;
-}
-
-.status-badge.waiting {
-  background: #fff4ed;
-  color: #f48842;
-  animation: pulseGlow 2s infinite;
-}
-
 .panel {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);

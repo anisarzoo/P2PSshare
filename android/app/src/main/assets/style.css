@@ -132,45 +132,6 @@ h1 {
   letter-spacing: -0.02em;
 }
 
-.header-badges {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.transport-badge,
-.status-badge {
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 7px 10px;
-  border-radius: 999px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  border: 1px solid transparent;
-}
-
-.transport-badge {
-  color: var(--ink);
-  background: rgba(244, 136, 66, 0.2);
-  border-color: rgba(244, 136, 66, 0.28);
-}
-
-.status-badge.disconnected {
-  color: #fff;
-  background: var(--danger);
-}
-
-.status-badge.waiting {
-  color: #1f1a03;
-  background: #ffd87a;
-}
-
-.status-badge.connected {
-  color: #fff;
-  background: var(--success);
-}
-
 .main-grid {
   display: flex;
   flex-direction: column;
