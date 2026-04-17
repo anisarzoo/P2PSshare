@@ -930,7 +930,10 @@ function pushReceivedArchiveItem(name, blob, timestamp) {
 
 function updateSaveAllButtonState() {
   if (!elements.btnSaveAll) return;
-  elements.btnSaveAll.disabled = state.receivedArchiveItems.length === 0;
+  const count = state.receivedArchiveItems.length;
+  // Only show the "Save All" tool if we have more than one item to archive
+  elements.btnSaveAll.classList.toggle('hidden', count <= 1);
+  elements.btnSaveAll.disabled = count === 0;
 }
 
 async function saveAllReceivedArchive() {
