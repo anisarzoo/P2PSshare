@@ -229,7 +229,12 @@ function initPeer(id = null) {
   peer.on('open', (openId) => {
     myId = openId;
     myPeerIdEl.textContent = openId;
-    myPeerIdEl.classList.remove('loading');
+    
+    // Add a small delay so the user can actually see the "shimmer" effect
+    setTimeout(() => {
+      myPeerIdEl.classList.remove('loading');
+    }, 800);
+
     generateQRCode(openId);
 
     if (pendingJoinId) {
@@ -292,8 +297,11 @@ function generateQRCode(id) {
   const checkImgReady = setInterval(() => {
     const img = qrcodeContainer.querySelector('img');
     if (img && img.src && img.src !== 'undefined') {
-      qrcodeContainer.classList.remove('loading');
       clearInterval(checkImgReady);
+      // Wait a moment so the skeleton is actually visible
+      setTimeout(() => {
+        qrcodeContainer.classList.remove('loading');
+      }, 800);
     }
   }, 50);
 
