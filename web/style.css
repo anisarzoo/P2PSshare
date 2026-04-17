@@ -23,9 +23,14 @@ body {
   padding-top: var(--safe-top);
 }
 
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(11, 106, 97, 0.25) transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -33,12 +38,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(22, 159, 144, 0.35);
-  border-radius: 8px;
+  background: rgba(11, 106, 97, 0.25);
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(22, 159, 144, 0.65);
+  background: rgba(11, 106, 97, 0.5);
 }
 
 .hidden {
@@ -963,6 +968,7 @@ body.web-join-mode footer {
   gap: 6px;
   max-height: 220px;
   overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .activity-log li {
