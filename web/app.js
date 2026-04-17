@@ -2106,6 +2106,9 @@ function bindEvents() {
   elements.btnWebJoin && elements.btnWebJoin.addEventListener('click', () => joinRoom(elements.webJoinIdInput.value));
   elements.btnWebScan && elements.btnWebScan.addEventListener('click', startScanner);
 
+  const btnCloseScanner = document.getElementById('btn-close-scanner');
+  if (btnCloseScanner) btnCloseScanner.addEventListener('click', stopScanner);
+
   const btnCancelHost = document.getElementById('btn-cancel-host');
   if (btnCancelHost) btnCancelHost.addEventListener('click', () => resetToSetup({ destroyPeer: true }));
 
