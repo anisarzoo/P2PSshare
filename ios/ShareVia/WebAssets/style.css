@@ -449,6 +449,11 @@ body.web-join-mode footer {
   display: none !important;
 }
 
+.transfer-tools {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
 .history-panel {
   margin-top: 24px;
 }
