@@ -579,10 +579,7 @@ function configurePlatformMode() {
   if (elements.setupSubtitle) {
     elements.setupSubtitle.textContent = 'Send or receive files with anyone, anywhere. No account needed.';
   }
-
-
-
-
+}
 
 async function disableBrowserOfflineCache() {
   if (!('serviceWorker' in navigator)) {
@@ -2275,5 +2272,4 @@ function setupSidebarEvents() {
     reader.readAsDataURL(file);
   });
   
-}
 }
