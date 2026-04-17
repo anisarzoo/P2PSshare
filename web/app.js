@@ -906,6 +906,7 @@ function initPeer(preferredId = undefined) {
     state.myId = id;
     state.reconnectAttempts = 0;
     elements.myPeerId.textContent = id;
+    elements.myPeerId.classList.remove('loading');
     generateQRCode(id);
 
     const joiningTarget = state.pendingJoinId;
@@ -1062,10 +1063,15 @@ function attemptReconnect() {
 function hostRoom() {
   if (state.myId && state.peer && !state.peer.destroyed) {
     elements.myPeerId.textContent = state.myId;
+    elements.myPeerId.classList.remove('loading');
     generateQRCode(state.myId);
     showSection(elements.hostingSection);
     return;
   }
+
+  elements.myPeerId.classList.add('loading');
+  elements.myPeerId.textContent = '------';
+  if (elements.qrcodeContainer) elements.qrcodeContainer.classList.add('loading');
 
   const roomId = generateRoomCode();
   state.dashboardMode = 'send';
@@ -1085,6 +1091,10 @@ function beginSendDiscovery() {
     alert('Already connected. Disconnect the current session first.');
     return;
   }
+
+  elements.myPeerId.classList.add('loading');
+  elements.myPeerId.textContent = '------';
+  if (elements.qrcodeContainer) elements.qrcodeContainer.classList.add('loading');
 
   const roomId = generateRoomCode();
   state.dashboardMode = 'send';
