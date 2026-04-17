@@ -222,6 +222,7 @@ function initPeer(id = null) {
   // Show the code and QR immediately to improve perceived speed
   myPeerIdEl.textContent = peerId;
   myPeerIdEl.classList.add('loading');
+  if (qrcodeContainer) qrcodeContainer.classList.add('loading');
   generateQRCode(peerId);
 
   peer = new Peer(peerId, SIGNAL_CONFIG);
