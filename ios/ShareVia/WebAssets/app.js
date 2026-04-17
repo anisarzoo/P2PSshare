@@ -1661,7 +1661,13 @@ function createTransferUI(id, name, size, direction, timestamp = Date.now()) {
 
   const title = document.createElement('span');
   title.className = 'transfer-name';
-  title.textContent = `${direction === 'outgoing' ? 'Sending' : 'Receiving'} - ${name}`;
+  
+  const icon = document.createElement('span');
+  icon.className = `direction-icon ${direction}`;
+  icon.textContent = direction === 'outgoing' ? '↑' : '↓';
+  
+  title.appendChild(icon);
+  title.appendChild(document.createTextNode(name));
 
   const headRight = document.createElement('div');
   headRight.className = 'transfer-head-right';

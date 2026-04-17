@@ -911,6 +911,31 @@ body.web-join-mode footer {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.direction-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.direction-icon.outgoing {
+  background: rgba(46, 125, 50, 0.1);
+  color: #2e7d32;
+}
+
+.direction-icon.incoming {
+  background: rgba(21, 101, 192, 0.1);
+  color: #1565c0;
 }
 
 .transfer-meta {
