@@ -227,7 +227,13 @@
     <div id="scanner-modal" class="modal hidden">
       <div class="modal-card">
         <h3>Scan Room QR</h3>
-        <div id="qr-reader"></div>
+        <div class="scanner-container">
+          <div id="qr-reader"></div>
+          <div id="qr-skeleton" class="qr-skeleton">
+            <div class="skeleton-viewer"></div>
+            <span>Accessing Camera...</span>
+          </div>
+        </div>
         <button id="btn-close-scanner" class="btn btn-ghost full">Close Camera</button>
       </div>
     </div>

@@ -117,6 +117,7 @@ const elements = {
   capNfc: document.getElementById('cap-nfc'),
   capLocation: document.getElementById('cap-location'),
   capNative: document.getElementById('cap-native'),
+  qrSkeleton: document.getElementById('qr-skeleton'),
 };
 
 let initializeDone = false;

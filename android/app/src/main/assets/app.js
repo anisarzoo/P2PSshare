@@ -112,6 +112,7 @@ const elements = {
   ackEvery: document.getElementById('ack-every'),
   btnAdvanced: document.getElementById('btn-advanced'),
   formSettings: document.getElementById('form-settings'),
+  qrSkeleton: document.getElementById('qr-skeleton'),
 };
 
 let initializeDone = false;
@@ -2038,6 +2039,9 @@ async function startScanner() {
       },
     );
 
+    if (elements.qrSkeleton) {
+      elements.qrSkeleton.classList.add('hidden');
+    }
     logActivity('Scanner started.');
   } catch (error) {
     console.error('Scanner start error:', error);
@@ -2055,6 +2059,9 @@ function stopScanner() {
 
   state.scannerActive = false;
   elements.scannerModal.classList.add('hidden');
+  if (elements.qrSkeleton) {
+    elements.qrSkeleton.classList.remove('hidden');
+  }
 }
 
 function handleScanResult(decodedText) {
