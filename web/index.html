@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>ShareVia - P2P File Transfer Online & Offline</title>
-  <meta name="description" content="Send and receive files with anyone, anywhere. Instant P2P transfer via browser — no account needed. Android app adds offline Wi-Fi & Bluetooth sharing.">
-  <meta name="sharevia-app-url" content="https://play.google.com/store/apps/details?id=com.ShareVia.app">
+  <title>ShareVia - P2P File Transfer</title>
+  <meta name="description" content="Send and receive files with anyone, anywhere. Instant P2P transfer via browser — no account needed.">
   <meta name="theme-color" content="#0d3f3a">
   <link rel="icon" type="image/png" href="icon128.png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -39,27 +38,7 @@
         <h2 id="setup-title">Share Files Online</h2>
         <p id="setup-subtitle" class="subtitle">Send or receive files with anyone, anywhere. No account needed.</p>
 
-        <div id="share-mode-toggle" class="share-mode-toggle hidden" role="tablist" aria-label="Share mode">
-          <button id="btn-mode-offline" class="mode-tab active" type="button" role="tab" aria-selected="true">📡 Offline</button>
-          <button id="btn-mode-online" class="mode-tab" type="button" role="tab" aria-selected="false">🌐 Online</button>
-        </div>
 
-        <div id="offline-pc-panel" class="panel card hidden" style="text-align: center; margin-bottom: 24px;">
-          <h3>Send to PC (Hotspot)</h3>
-          <p class="subtitle" style="font-size: 0.9rem; margin-bottom: 16px;">Share your files instantly with any PC, no internet or app needed.</p>
-          <ol style="text-align: left; font-size: 0.95rem; line-height: 1.6; margin-bottom: 20px;">
-            <li>Turn on your phone's <strong>Wi-Fi Hotspot</strong>.</li>
-            <li>Connect your PC to your Hotspot.</li>
-            <li>Scan this QR on your PC, or manually go to the URL below in your PC browser:</li>
-          </ol>
-          <div id="pc-qr-container" style="background: white; padding: 16px; border-radius: 12px; display: inline-block; margin-bottom: 16px;"></div>
-          <div class="input-group" style="justify-content: center; margin-bottom: 16px;">
-            <input type="text" id="pc-server-url" readonly value="http://192.168.x.x:8080/" style="text-align: center; max-width: 250px;">
-            <button id="btn-copy-pc-url" class="btn secondary">Copy</button>
-          </div>
-          <p class="hint">Ensure ShareVia app stays open on your phone during transfer.</p>
-          <button id="btn-close-pc-panel" class="btn default" style="width: 100%; margin-top: 16px;">Close</button>
-        </div>
 
         <div id="dashboard-grid" class="dashboard-grid">
           <button id="btn-dashboard-send" class="dashboard-card send" type="button" style="grid-column: 1 / -1; width: 100%;">
@@ -73,32 +52,7 @@
 
 
 
-        <div id="radar-panel" class="radar-panel hidden">
-          <div class="radar-head">
-            <h3>Offline Radar</h3>
-            <span id="radar-pulse" class="radar-pulse"></span>
-          </div>
-          <p id="radar-status" class="radar-status">Tap <strong>Receive</strong> to start nearby scan.</p>
-          <ul id="nearby-device-list" class="nearby-device-list"></ul>
 
-          <div class="radar-actions">
-            <button id="btn-show-my-code" class="btn btn-secondary hidden" type="button">Show My QR/Code</button>
-            <button id="btn-share-online-link" class="btn btn-ghost hidden" type="button">Share Online Link</button>
-            <button id="btn-scan" class="btn btn-dark" type="button">Scan QR</button>
-          </div>
-
-          <div id="native-actions" class="native-actions hidden">
-            <button id="btn-native-wifi" class="btn btn-ghost" type="button">Wi-Fi Pairing</button>
-            <button id="btn-native-bluetooth" class="btn btn-ghost" type="button">Bluetooth Pairing</button>
-            <button id="btn-native-nfc" class="btn btn-ghost" type="button">NFC Pairing</button>
-            <button id="btn-native-location" class="btn btn-ghost" type="button">Location Hint</button>
-          </div>
-
-          <div id="join-inline" class="join-inline">
-            <input type="text" id="join-id" placeholder="Enter 6-digit room code" inputmode="numeric" maxlength="6">
-            <button id="btn-join" class="btn btn-secondary">Join</button>
-          </div>
-        </div>
 
         <div id="web-join-panel" class="web-join-panel">
           <h3>Join a Transfer Room</h3>
@@ -168,18 +122,7 @@
           </form>
         </div>
 
-        <div id="technical-capabilities" class="capabilities hidden">
-          <h3>Native App Features</h3>
-          <p id="capability-note" class="capability-note"></p>
-          <div id="capability-grid" class="capability-grid">
-            <span id="cap-webrtc" class="capability-chip">WebRTC: checking</span>
-            <span id="cap-wifi" class="capability-chip">Wi-Fi: checking</span>
-            <span id="cap-bluetooth" class="capability-chip">Bluetooth: checking</span>
-            <span id="cap-nfc" class="capability-chip">NFC: checking</span>
-            <span id="cap-location" class="capability-chip">Location: checking</span>
-            <span id="cap-native" class="capability-chip">Native Bridge: checking</span>
-          </div>
-        </div>
+
       </section>
 
       <section id="hosting-section" class="panel hidden">
