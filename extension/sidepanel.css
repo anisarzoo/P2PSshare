@@ -428,6 +428,35 @@ input[type="text"]:focus {
   justify-content: center;
 }
 
+.note-box {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.note-box label {
+  font-weight: 800;
+  font-size: 0.86rem;
+}
+
+.note-inbox {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.note-item {
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(7, 69, 63, 0.12);
+  font-size: 0.9rem;
+}
+
+.note-item.self {
+  background: rgba(22, 159, 144, 0.16);
+}
+
 /* ---- Transfer List ---- */
 .transfer-list {
   display: grid;

@@ -20,6 +20,9 @@ const joinIdInput = document.getElementById('join-id');
 const qrcodeContainer = document.getElementById('qrcode-container');
 const btnPickFiles = document.getElementById('btn-pick-files');
 const btnPickFolder = document.getElementById('btn-pick-folder');
+const textNote = document.getElementById('text-note');
+const btnSendNote = document.getElementById('btn-send-note');
+const noteInbox = document.getElementById('note-inbox');
 
 // Web app URL for QR codes
 const WEB_APP_URL = "https://sharevia.netlify.app";
@@ -158,6 +161,11 @@ function initPeer(id = null) {
   }
 
   const peerId = id || generateRoomCode();
+  
+  // Show the code and QR immediately to improve perceived speed
+  myPeerIdEl.textContent = peerId;
+  generateQRCode(peerId);
+
   peer = new Peer(peerId, SIGNAL_CONFIG);
 
   peer.on('open', (openId) => {
@@ -372,6 +380,8 @@ function handleIncomingData(data, fromPeerId = '') {
       handleIncomingCancel(data, fromPeerId);
       break;
     case 'text-note':
+      handleIncomingNote(data, fromPeerId);
+      break;
     case 'capabilities':
     default:
       break;
@@ -490,6 +500,42 @@ function handleIncomingAck(data, fromPeerId = '') {
   record.ackedBytes = data.receivedBytes;
   const progress = (data.receivedBytes / record.size) * 100;
   updateTransferProgress(transferKey, progress, data.receivedBytes, record.size, record.startTs, 'Delivered');
+}
+
+// --- Quick Messaging ---
+
+function handleIncomingNote(data, fromPeerId = '') {
+  if (!data.text) return;
+  const fromLabel = normalizePeerLabel(fromPeerId);
+  addNoteToInbox(`${fromLabel}: ${data.text}`, false);
+}
+
+function addNoteToInbox(text, isSelf) {
+  const item = document.createElement('div');
+  item.className = `note-item ${isSelf ? 'self' : ''}`.trim();
+  item.textContent = text;
+  noteInbox.prepend(item);
+}
+
+function queueNote() {
+  const text = textNote.value.trim();
+  if (!text) return;
+
+  const targets = getOpenConnections();
+  if (!targets.length) {
+    alert('Connect to a device first to send notes.');
+    return;
+  }
+
+  targets.forEach(connection => {
+    safeSendToConnection(connection, {
+      type: 'text-note',
+      text: text
+    });
+  });
+
+  addNoteToInbox(`You: ${text}`, true);
+  textNote.value = '';
 }
 
 // --- Send Files (compatible with web app protocol) ---
@@ -619,6 +665,7 @@ function resetToSetup(options = {}) {
     hostingMode = false;
     updateConnectedLabel();
     transferList.innerHTML = '';
+    noteInbox.innerHTML = '';
     if (destroyPeer && peer) {
       try {
         peer.destroy();
@@ -817,9 +864,22 @@ joinIdInput.addEventListener('keydown', (e) => {
 });
 
 document.getElementById('btn-copy-id').addEventListener('click', () => {
-  if (myId) {
-    navigator.clipboard.writeText(myId).then(() => {
+  const code = myId || myPeerIdEl.textContent;
+  if (code && code !== '------') {
+    navigator.clipboard.writeText(code).then(() => {
       const btn = document.getElementById('btn-copy-id');
+      btn.style.background = 'rgba(13, 140, 87, 0.2)';
+      setTimeout(() => { btn.style.background = ''; }, 800);
+    });
+  }
+});
+
+document.getElementById('btn-copy-link').addEventListener('click', () => {
+  const code = myId || myPeerIdEl.textContent;
+  if (code && code !== '------') {
+    const joinUrl = `${WEB_APP_URL}/#${code}`;
+    navigator.clipboard.writeText(joinUrl).then(() => {
+      const btn = document.getElementById('btn-copy-link');
       btn.style.background = 'rgba(13, 140, 87, 0.2)';
       setTimeout(() => { btn.style.background = ''; }, 800);
     });
@@ -832,6 +892,18 @@ document.getElementById('btn-cancel-host').addEventListener('click', () => {
 
 document.getElementById('btn-disconnect').addEventListener('click', () => {
   resetToSetup({ destroyPeer: true });
+});
+
+// Quick Messaging
+btnSendNote.addEventListener('click', () => {
+  queueNote();
+});
+
+textNote.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    queueNote();
+  }
 });
 
 // Drag and Drop
