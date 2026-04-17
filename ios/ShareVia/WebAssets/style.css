@@ -813,6 +813,7 @@ body.web-join-mode footer {
   border-radius: 12px;
   overflow: hidden;
   border: none !important;
+  width: 100%;
 }
 
 .scanner-container {
@@ -822,8 +823,6 @@ body.web-join-mode footer {
   overflow: hidden;
   margin-bottom: 12px;
   min-height: 240px;
-  display: grid;
-  place-items: center;
 }
 
 .qr-skeleton {
