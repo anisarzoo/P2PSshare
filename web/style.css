@@ -233,10 +233,12 @@ h3 {
   border: 1px solid rgba(7, 69, 63, 0.16);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.78);
-  padding: 14px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
 }
 
 .web-join-panel h3 {
@@ -304,13 +306,14 @@ h3 {
 .dashboard-card {
   border: 0;
   border-radius: 20px;
-  padding: 18px 16px;
-  min-height: 124px;
-  text-align: left;
+  padding: 24px 20px;
+  min-height: 140px;
+  text-align: center;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
   transition: transform 120ms ease, filter 120ms ease;
 }
@@ -319,7 +322,6 @@ h3 {
 .dashboard-icon {
   font-size: 1.5rem;
   line-height: 1;
-  margin-bottom: 4px;
 }
 .dashboard-card.send {
   color: #fff;

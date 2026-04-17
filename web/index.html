@@ -62,15 +62,12 @@
         </div>
 
         <div id="dashboard-grid" class="dashboard-grid">
-          <button id="btn-dashboard-send" class="dashboard-card send" type="button">
-            <span class="dashboard-icon">↑</span>
-            <span class="dashboard-title">Send</span>
-            <span class="dashboard-copy">Create room &amp; share link</span>
-          </button>
-          <button id="btn-dashboard-receive" class="dashboard-card receive" type="button">
-            <span class="dashboard-icon">↓</span>
-            <span class="dashboard-title">Receive</span>
-            <span class="dashboard-copy">Join with code or QR</span>
+          <button id="btn-dashboard-send" class="dashboard-card send" type="button" style="grid-column: 1 / -1; width: 100%;">
+            <div class="dashboard-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14"/></svg>
+            </div>
+            <div class="dashboard-title">Host a Room</div>
+            <div class="dashboard-copy">Create a sharing room and get a link/QR for others to join.</div>
           </button>
         </div>
 
@@ -103,9 +100,9 @@
           </div>
         </div>
 
-        <div id="web-join-panel" class="web-join-panel hidden">
+        <div id="web-join-panel" class="web-join-panel">
           <h3>Join a Transfer Room</h3>
-          <p class="subtitle">Enter a room code or scan the sender's QR to connect.</p>
+          <p class="subtitle">Enter a room code or scan a QR to connect with someone.</p>
           <div class="join-inline">
             <input type="text" id="web-join-id" placeholder="Enter 6-digit room code" inputmode="numeric" maxlength="6">
             <button id="btn-web-join" class="btn btn-secondary" type="button">Join</button>

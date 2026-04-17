@@ -84,7 +84,6 @@ const elements = {
   btnWebJoin: document.getElementById('btn-web-join'),
   btnWebScan: document.getElementById('btn-web-scan'),
   btnDashboardSend: document.getElementById('btn-dashboard-send'),
-  btnDashboardReceive: document.getElementById('btn-dashboard-receive'),
   radarPanel: document.getElementById('radar-panel'),
   radarPulse: document.getElementById('radar-pulse'),
   radarStatus: document.getElementById('radar-status'),
@@ -654,14 +653,6 @@ function applyShareMode(mode) {
       copy.textContent = online
         ? 'Create room & share link'
         : 'Broadcast nearby via Wi-Fi & Bluetooth';
-    }
-  }
-  if (elements.btnDashboardReceive) {
-    const copy = elements.btnDashboardReceive.querySelector('.dashboard-copy');
-    if (copy) {
-      copy.textContent = online
-        ? 'Join with code or QR'
-        : 'Auto-scan nearby devices';
     }
   }
 
@@ -2519,7 +2510,6 @@ function registerServiceWorker() {
 
 function bindEvents() {
   elements.btnDashboardSend && elements.btnDashboardSend.addEventListener('click', beginSendDiscovery);
-  elements.btnDashboardReceive && elements.btnDashboardReceive.addEventListener('click', beginReceiveDiscovery);
   elements.btnWebJoin && elements.btnWebJoin.addEventListener('click', () => joinRoom(elements.webJoinIdInput.value));
   elements.btnWebScan && elements.btnWebScan.addEventListener('click', startScanner);
   elements.btnModeOffline && elements.btnModeOffline.addEventListener('click', () => applyShareMode('offline'));
