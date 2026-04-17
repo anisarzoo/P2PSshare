@@ -221,6 +221,7 @@ function initPeer(id = null) {
   
   // Show the code and QR immediately to improve perceived speed
   myPeerIdEl.textContent = peerId;
+  myPeerIdEl.classList.add('loading');
   generateQRCode(peerId);
 
   peer = new Peer(peerId, SIGNAL_CONFIG);
@@ -228,6 +229,7 @@ function initPeer(id = null) {
   peer.on('open', (openId) => {
     myId = openId;
     myPeerIdEl.textContent = openId;
+    myPeerIdEl.classList.remove('loading');
     generateQRCode(openId);
 
     if (pendingJoinId) {
@@ -273,6 +275,8 @@ function initPeer(id = null) {
 }
 
 function generateQRCode(id) {
+  if (!qrcodeContainer) return;
+  qrcodeContainer.classList.add('loading');
   qrcodeContainer.innerHTML = '';
   const joinUrl = `${WEB_APP_URL}/#${id}`;
 
@@ -284,6 +288,19 @@ function generateQRCode(id) {
     colorLight: "#ffffff",
     correctLevel: QRCode.CorrectLevel.M
   });
+
+  const checkImgReady = setInterval(() => {
+    const img = qrcodeContainer.querySelector('img');
+    if (img && img.src && img.src !== 'undefined') {
+      qrcodeContainer.classList.remove('loading');
+      clearInterval(checkImgReady);
+    }
+  }, 50);
+
+  setTimeout(() => {
+    qrcodeContainer.classList.remove('loading');
+    clearInterval(checkImgReady);
+  }, 2000);
 }
 
 // --- Connection ---

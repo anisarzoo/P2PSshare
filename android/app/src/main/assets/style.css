@@ -788,13 +788,6 @@ body.web-join-mode footer {
   border-radius: 8px;
   padding: 0 20px;
 }
-  right: 16px;
-  bottom: 16px;
-  border-radius: 8px;
-  background: linear-gradient(90deg, #f0f4f3 25%, #e0e8e7 50%, #f0f4f3 75%);
-  background-size: 200% 100%;
-  animation: skeleton-loading 1.5s infinite linear;
-}
 
 .qrcode-container.loading img,
 .qrcode-container.loading canvas {
