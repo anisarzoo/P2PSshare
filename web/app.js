@@ -1511,10 +1511,32 @@ function markTransferCancelled(id) {
   if (speed) speed.textContent = '-';
   if (cancelBtn) cancelBtn.remove();
   
-  // Clean up Copy/Save buttons if they exist
+  // Clean up Preview/Interactivity
   if (item) {
+    item.classList.remove('completed');
+    item.style.cursor = 'default';
+    item.title = '';
+    
+    // Remove the action buttons
     const actions = item.querySelector('.transfer-actions');
     if (actions) actions.remove();
+
+    // Remove the copy overlay (if any)
+    const overlay = item.querySelector('.native-copy-overlay');
+    if (overlay) overlay.remove();
+
+    // Remove any link overlays
+    const linkLayer = item.querySelector('a');
+    if (linkLayer && linkLayer.style.position === 'absolute') linkLayer.remove();
+
+    // Restore the preview thumb to empty (or hide it)
+    const thumb = item.querySelector('.transfer-preview-thumb');
+    if (thumb) {
+        thumb.innerHTML = '';
+        // If it was a video, the src should be cleared
+        const video = thumb.querySelector('video');
+        if (video) video.src = '';
+    }
   }
 
   // Remove from archive list if it was there
