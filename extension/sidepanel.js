@@ -106,6 +106,7 @@ function showSection(section) {
     elements.btnHeaderDisconnect.classList.add('hidden');
   } else {
     elements.btnHeaderDisconnect.classList.remove('hidden');
+    elements.btnHeaderDisconnect.className = 'btn btn-danger-soft'; // Apply styled classes
     elements.btnHeaderDisconnect.textContent = (section === elements.hostingSection) ? 'Cancel' : 'Leave';
   }
 }
