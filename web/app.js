@@ -1416,10 +1416,6 @@ function createTransferUI(id, name, size, direction, timestamp = Date.now()) {
   const headRight = document.createElement('div');
   headRight.className = 'transfer-head-right';
 
-  const sizeLabel = document.createElement('span');
-  sizeLabel.className = 'transfer-meta';
-  sizeLabel.textContent = `${formatBytes(size)} - ${formatClockTime(timestamp)}`;
-
   const cancelBtn = document.createElement('button');
   cancelBtn.className = 'btn-cancel';
   cancelBtn.id = `cancel-${id}`;
@@ -1427,7 +1423,6 @@ function createTransferUI(id, name, size, direction, timestamp = Date.now()) {
   cancelBtn.textContent = 'X';
   cancelBtn.addEventListener('click', () => cancelTransfer(id, direction));
 
-  headRight.appendChild(sizeLabel);
   headRight.appendChild(cancelBtn);
 
   head.appendChild(titleWrap);
