@@ -152,6 +152,7 @@ input, select, textarea {
 .btn-secondary { background: rgba(22, 159, 144, 0.1); color: var(--brand-strong); border: 1px solid rgba(22, 159, 144, 0.2); }
 .btn-dark { background: #132726; color: #fff; }
 .btn-ghost { background: transparent; color: var(--text-soft); text-decoration: underline; }
+.copy-success { background: #e6f7f4 !important; color: #169f90 !important; border-color: #169f90 !important; }
 .full { width: 100%; }
 
 .link-btn {

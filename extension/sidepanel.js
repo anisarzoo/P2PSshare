@@ -41,6 +41,8 @@ const elements = {
   myPeerId: document.getElementById('my-peer-id'),
   remotePeerId: document.getElementById('remote-peer-id'),
   qrcodeContainer: document.getElementById('qrcode-container'),
+  btnCopyCode: document.getElementById('btn-copy-code'),
+  btnCopyLink: document.getElementById('btn-copy-link'),
   btnHeaderDisconnect: document.getElementById('btn-header-disconnect'),
   
   dropZone: document.getElementById('drop-zone'),
@@ -111,6 +113,19 @@ function formatBytes(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function copyToClipboard(text, btn) {
+  if (!text || !btn) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const originalText = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copy-success');
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.classList.remove('copy-success');
+    }, 1500);
+  });
 }
 
 // --- Peer Logic ---
@@ -342,6 +357,15 @@ function setupEventListeners() {
   elements.btnDashboardSend.onclick = () => {
     const roomId = Math.floor(100000 + Math.random() * 900000).toString();
     initPeer(roomId);
+  };
+
+  elements.btnCopyCode.onclick = () => {
+    copyToClipboard(state.myId, elements.btnCopyCode);
+  };
+
+  elements.btnCopyLink.onclick = () => {
+    const url = `${WEB_APP_URL}#${state.myId}`;
+    copyToClipboard(url, elements.btnCopyLink);
   };
 
   elements.btnWebJoin.onclick = () => {
