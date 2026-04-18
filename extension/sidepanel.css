@@ -233,13 +233,130 @@ textarea { width: 100%; resize: none; min-height: 60px; font-family: inherit; }
   font-size: 0.8rem;
 }
 
-.transfer-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+/* Modern Transfer Cards (Synced with Web) */
 .transfer-item {
-  padding: 10px; background: #fff; border: 1px solid var(--panel-border);
-  border-radius: 10px; display: flex; flex-direction: column; gap: 4px;
+  padding: 12px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  overflow: hidden;
 }
-.transfer-info { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 700; }
-.transfer-meta { font-size: 0.75rem; color: var(--text-soft); }
+
+.transfer-item.completed {
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.transfer-item.completed:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.transfer-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.transfer-preview-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: visible;
+}
+
+.direction-icon {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  z-index: 10;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.direction-icon.outgoing { background: #388e3c; color: #fff; }
+.direction-icon.incoming { background: #1976d2; color: #fff; }
+
+.transfer-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.transfer-name {
+  font-weight: 800;
+  font-size: 0.85rem;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.progress-wrap {
+  height: 6px;
+  background: rgba(0,0,0,0.05);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--brand-strong);
+  transition: width 0.2s;
+}
+
+.progress-bar.complete { background: #2e7d32; }
+.progress-bar.cancelled { background: #c84334; width: 100% !important; }
+
+.transfer-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-soft);
+}
+
+.transfer-status {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-cancel-small {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid rgba(200, 67, 52, 0.2);
+  background: rgba(200, 67, 52, 0.05);
+  color: #c84334;
+  font-size: 0.7rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
 
 .history-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 8px; }
 .history-tab {

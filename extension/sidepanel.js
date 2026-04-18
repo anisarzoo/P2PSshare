@@ -240,10 +240,10 @@ function receiveChunk(data, fromPeer) {
   transfer.receivedBytes += data.chunk.byteLength;
   
   const progress = (transfer.receivedBytes / transfer.size) * 100;
-  updateTransferProgress(key, progress);
+  updateTransferProgress(key, progress, `Receiving ${progress.toFixed(0)}%`);
 
   if (transfer.receivedBytes >= transfer.size) {
-    // End logic handled by 'file-end' usually, but good to be safe
+    // End logic handled by 'file-end'
   }
 }
 
@@ -255,7 +255,8 @@ function finishIncomingTransfer(data, fromPeer) {
   const blob = new Blob(transfer.chunks);
   const url = URL.createObjectURL(blob);
   
-  markTransferComplete(key, url, transfer.name);
+  markTransferComplete(key, `Received at ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`);
+  addDownloadAction(key, url, transfer.name);
   saveToHistory('received', transfer.name, transfer.size);
   state.incomingTransfers.delete(key);
 }
@@ -269,6 +270,13 @@ async function sendFiles(files) {
     const key = `me-${transferId}`;
     const chunkSize = state.config.chunkSize;
     const totalChunks = Math.ceil(file.size / chunkSize);
+
+    state.outgoingTransfers.set(key, {
+        id: key,
+        name: file.name,
+        size: file.size,
+        mime: file.type || 'application/octet-stream'
+    });
 
     createTransferUI(key, file.name, file.size, 'outgoing');
 
@@ -285,63 +293,166 @@ async function sendFiles(files) {
       const chunk = await file.slice(offset, offset + chunkSize).arrayBuffer();
       conn.send({ type: 'file-chunk', transferId, index: i, chunk });
       offset += chunkSize;
-      updateTransferProgress(key, (offset / file.size) * 100);
+      updateTransferProgress(key, (offset / file.size) * 100, `Sending ${(offset / file.size * 100).toFixed(0)}%`);
     }
 
     conn.send({ type: 'file-end', transferId });
-    markTransferComplete(key);
+    
+    const url = URL.createObjectURL(file);
+    markTransferComplete(key, `Sent at ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`);
+    addDownloadAction(key, url, file.name);
+    
     saveToHistory('sent', file.name, file.size);
+    state.outgoingTransfers.delete(key);
   }
 }
 
 // --- UI Elements Management ---
 
 function createTransferUI(key, name, size, direction) {
-  const item = document.createElement('div');
-  item.id = `transfer-${key}`;
-  item.className = 'transfer-item';
-  item.innerHTML = `
-    <div class="transfer-info">
-      <span>${name}</span>
-      <span class="status">0%</span>
+  const wrapper = document.createElement('div');
+  wrapper.id = `transfer-${key}`;
+  wrapper.className = 'transfer-item';
+
+  wrapper.innerHTML = `
+    <div class="transfer-head">
+      <div class="transfer-preview-thumb" id="thumb-${key}">
+        <span class="direction-icon ${direction}">${direction === 'outgoing' ? '↑' : '↓'}</span>
+      </div>
+      <div class="transfer-title-wrap">
+        <span class="transfer-name">${name}</span>
+      </div>
+      <button class="btn-cancel-small" id="cancel-${key}">X</button>
     </div>
-    <div class="transfer-meta">${formatBytes(size)} • ${direction}</div>
-    <div style="height:4px; background:rgba(0,0,0,0.05); border-radius:2px; margin-top:4px;">
-      <div class="progress-bar" style="height:100%; width:0%; background:var(--brand-strong); border-radius:2px; transition: width 0.2s;"></div>
+    <div class="progress-wrap">
+      <div class="progress-bar" id="progress-${key}"></div>
+    </div>
+    <div class="transfer-foot">
+      <span class="transfer-status" id="status-${key}">Starting...</span>
     </div>
   `;
-  elements.transferList.prepend(item);
-}
 
-function updateTransferProgress(key, progress) {
-  const item = document.getElementById(`transfer-${key}`);
-  if (!item) return;
-  const bar = item.querySelector('.progress-bar');
-  const status = item.querySelector('.status');
-  const p = Math.min(progress, 100).toFixed(0);
-  bar.style.width = p + '%';
-  status.textContent = p + '%';
-}
-
-function markTransferComplete(key, url = null, name = null) {
-  const item = document.getElementById(`transfer-${key}`);
-  if (!item) return;
-  item.querySelector('.status').textContent = 'Done';
-  item.querySelector('.progress-bar').style.background = 'var(--success)';
+  elements.transferList.prepend(wrapper);
   
-  if (url && name) {
-    const btn = document.createElement('button');
-    btn.className = 'btn btn-secondary full';
-    btn.style.marginTop = '8px';
-    btn.textContent = 'Download';
-    btn.onclick = () => {
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = name;
-      a.click();
-    };
-    item.appendChild(btn);
+  const cancelBtn = wrapper.querySelector(`#cancel-${key}`);
+  cancelBtn.onclick = (e) => {
+      e.stopPropagation();
+      markTransferCancelled(key);
+  };
+
+  return wrapper;
+}
+
+function updateTransferProgress(key, progress, label) {
+  const bar = document.getElementById(`progress-${key}`);
+  const status = document.getElementById(`status-${id}`); // Wait, id vs key
+  
+  // Re-identifying the elements by ID as we do in web
+  const barEl = document.getElementById(`progress-${key}`);
+  const statusEl = document.getElementById(`status-${key}`);
+  
+  if (!barEl || barEl.classList.contains('complete')) return;
+
+  const p = Math.max(0, Math.min(progress, 100));
+  barEl.style.width = p + '%';
+  if (statusEl && label) statusEl.textContent = label;
+}
+
+function markTransferComplete(id, statusLabel) {
+  const bar = document.getElementById(`progress-${id}`);
+  const status = document.getElementById(`status-${id}`);
+  const cancelBtn = document.getElementById(`cancel-${id}`);
+  const item = document.getElementById(`transfer-${id}`);
+
+  if (bar) bar.classList.add('complete');
+  if (status && statusLabel) status.textContent = statusLabel;
+  if (cancelBtn) cancelBtn.remove();
+  if (item) item.classList.add('completed');
+}
+
+function markTransferCancelled(id) {
+  const bar = document.getElementById(`progress-${id}`);
+  const status = document.getElementById(`status-${id}`);
+  const cancelBtn = document.getElementById(`cancel-${id}`);
+  const item = document.getElementById(`transfer-${id}`);
+
+  if (bar) {
+    bar.classList.add('cancelled');
+    bar.style.width = '100%';
   }
+  if (status) status.textContent = 'Cancelled';
+  if (cancelBtn) cancelBtn.remove();
+
+  if (item) {
+    item.classList.remove('completed');
+    item.style.cursor = 'default';
+    const thumb = document.getElementById(`thumb-${id}`);
+    if (thumb) {
+        // Clear thumb content except direction icon
+        const icon = thumb.querySelector('.direction-icon');
+        thumb.innerHTML = '';
+        if (icon) thumb.appendChild(icon);
+    }
+  }
+}
+
+function addDownloadAction(id, url, name) {
+    const item = document.getElementById(`transfer-${id}`);
+    const thumbContainer = document.getElementById(`thumb-${id}`);
+    if (!item || !thumbContainer) return;
+
+    const record = state.incomingTransfers.get(id) || state.outgoingTransfers.get(id);
+    const mime = (record && record.mime) || '';
+    const lowerName = name.toLowerCase();
+
+    // 1. Generate Thumbnail / Icon
+    if (mime.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.style.objectFit = 'cover';
+      img.style.borderRadius = '6px';
+      thumbContainer.appendChild(img);
+    } else {
+      const iconSpan = document.createElement('span');
+      iconSpan.style.fontSize = '1.1rem';
+      
+      if (mime.startsWith('audio/') || lowerName.endsWith('.mp3')) {
+        iconSpan.textContent = '🎵';
+      } else if (mime.startsWith('video/')) {
+          iconSpan.textContent = '🎬';
+      } else if (mime.includes('zip') || lowerName.endsWith('.zip') || lowerName.endsWith('.rar')) {
+        iconSpan.textContent = '📦';
+      } else if (mime.includes('sheet') || lowerName.endsWith('.xlsx')) {
+        iconSpan.textContent = '📄';
+      } else {
+        iconSpan.textContent = '📄';
+      }
+      thumbContainer.appendChild(iconSpan);
+    }
+
+    // 2. Click to Preview
+    item.onclick = () => {
+        if (!item.classList.contains('completed')) return;
+        window.open(url, '_blank');
+    };
+    
+    // 3. Save Button
+    const foot = item.querySelector('.transfer-foot');
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-secondary';
+    saveBtn.style.padding = '2px 8px';
+    saveBtn.style.fontSize = '0.7rem';
+    saveBtn.textContent = 'Save';
+    saveBtn.onclick = (e) => {
+        e.stopPropagation();
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+    };
+    foot.appendChild(saveBtn);
 }
 
 function addNoteToInbox(text, sender) {
