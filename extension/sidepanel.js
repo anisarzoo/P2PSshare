@@ -325,12 +325,11 @@ function markTransferComplete(key, url = null, name = null) {
 function addNoteToInbox(text, sender) {
   const item = document.createElement('div');
   item.className = 'note-item';
-  item.style.padding = '8px';
+  item.style.padding = '10px';
   item.style.background = '#fff';
-  item.style.borderRadius = '8px';
-  item.style.marginBottom = '8px';
+  item.style.borderRadius = '10px';
   item.style.border = '1px solid var(--panel-border)';
-  item.innerHTML = `<small style="color:var(--text-soft)">${sender === 'me' ? 'You' : sender}:</small><div>${text}</div>`;
+  item.innerHTML = `<small style="color:var(--text-soft); font-weight:700;">${sender === 'me' ? 'You' : sender}:</small><div style="margin-top:2px;">${text}</div>`;
   elements.noteInbox.prepend(item);
 }
 
