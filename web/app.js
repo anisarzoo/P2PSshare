@@ -1589,6 +1589,9 @@ function addDownloadAction(id, url, fileName) {
   item.style.cursor = 'pointer';
   item.title = 'Click to preview / open';
   item.addEventListener('click', (e) => {
+    // Only allow preview if the card is actually marked as completed
+    if (!item.classList.contains('completed')) return;
+    
     // Don't trigger if clicking buttons specifically
     if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
     window.open(url, '_blank');
