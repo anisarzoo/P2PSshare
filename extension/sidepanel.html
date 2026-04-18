@@ -2,8 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ShareVia - Side Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ShareVia - P2P File Transfer</title>
+  <meta name="description" content="Send and receive files with anyone, anywhere. Instant P2P transfer via browser — no account needed.">
+  <meta name="theme-color" content="#0d3f3a">
+  <link rel="icon" type="image/png" href="icon128.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -18,7 +22,7 @@
       <div class="brand">
         <img src="icon128.png" alt="ShareVia" class="logo-img">
         <div>
-          <p class="eyebrow">Extension Transfer</p>
+          <p class="eyebrow">Cross-Device Transfer</p>
           <h1>ShareVia</h1>
         </div>
       </div>
@@ -27,57 +31,104 @@
 
     <main class="main-grid">
       <section id="setup-section" class="panel active">
-        <h2>Start Sharing</h2>
-        <p class="subtitle">Host a room or join one to transfer files.</p>
+        <h2 id="setup-title">Share Files Online</h2>
+        <p id="setup-subtitle" class="subtitle">Send or receive files with anyone, anywhere. No account needed.</p>
+
+
 
         <div id="dashboard-grid" class="dashboard-grid">
           <button id="btn-dashboard-send" class="dashboard-card send" type="button" style="grid-column: 1 / -1; width: 100%;">
             <div class="dashboard-icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49m11.31-2.82a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14"/></svg>
             </div>
-            <div class="dashboard-title">Create Room</div>
+            <div class="dashboard-title">Host a Room</div>
+            <div class="dashboard-copy">Create a sharing room and get a link/QR for others to join.</div>
           </button>
         </div>
 
+
+
+
+
         <div id="web-join-panel" class="web-join-panel">
-          <p class="subtitle">Join existing room</p>
+          <h3>Join a Transfer Room</h3>
+          <p class="subtitle">Enter a room code or scan a QR to connect with someone.</p>
           <div class="join-inline">
-            <input type="text" id="web-join-id" placeholder="6-digit code" inputmode="numeric" maxlength="6">
+            <input type="text" id="web-join-id" placeholder="Enter 6-digit room code" inputmode="numeric" maxlength="6">
             <button id="btn-web-join" class="btn btn-secondary" type="button">Join</button>
           </div>
-          <button id="btn-web-scan" class="btn btn-ghost full" type="button" style="margin-top: 8px; font-size: 0.8rem;">Scan QR</button>
+          <button id="btn-web-scan" class="btn btn-dark full" type="button">Scan QR</button>
         </div>
 
-
-        <button id="btn-advanced" class="link-btn" type="button">Network Settings</button>
+        <button id="btn-advanced" class="link-btn" type="button" aria-haspopup="true" aria-expanded="false">Network and Transfer Settings</button>
         <div id="advanced-panel" class="advanced hidden">
           <form id="form-settings">
             <div class="field-grid">
               <label class="field">
-                <span>Signal Host</span>
-                <input id="signal-host" type="text" placeholder="Default">
+                <span>Signaling Host (blank = default cloud)</span>
+                <input id="signal-host" type="text" placeholder="192.168.1.20">
               </label>
               <label class="field">
                 <span>Port</span>
-                <input id="signal-port" type="number" placeholder="9000">
+                <input id="signal-port" type="number" min="1" max="65535" placeholder="9000">
               </label>
-              <label class="field check" style="grid-column: 1 / -1;">
+              <label class="field">
+                <span>Path</span>
+                <input id="signal-path" type="text" value="/peerjs">
+              </label>
+              <label class="field field-span-2">
+                <span>STUN URL</span>
+                <input id="ice-stun-url" type="text" value="stun:stun.l.google.com:19302">
+              </label>
+              <label class="field field-span-2">
+                <span>TURN URLs (comma separated)</span>
+                <input id="ice-turn-urls" type="text" placeholder="turn:turn.example.com:3478?transport=udp,turns:turn.example.com:5349">
+              </label>
+              <label class="field">
+                <span>TURN Username</span>
+                <input id="ice-turn-username" type="text" placeholder="turn-user" autocomplete="username">
+              </label>
+              <label class="field">
+                <span>TURN Credential</span>
+                <input id="ice-turn-credential" type="password" placeholder="turn-password" autocomplete="new-password">
+              </label>
+              <label class="field">
+                <span>Chunk Size</span>
+                <select id="chunk-size">
+                  <option value="32768">32 KB</option>
+                  <option value="65536" selected>64 KB</option>
+                  <option value="131072">128 KB</option>
+                  <option value="262144">256 KB</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Ack Interval</span>
+                <select id="ack-every">
+                  <option value="16">Every 16 chunks</option>
+                  <option value="32" selected>Every 32 chunks</option>
+                  <option value="64">Every 64 chunks</option>
+                </select>
+              </label>
+              <label class="check">
                 <input id="signal-secure" type="checkbox" checked>
-                <span>Secure (TLS)</span>
+                <span>Use secure TLS connection</span>
               </label>
             </div>
             <button id="btn-save-config" type="submit" class="btn btn-secondary full">Save Settings</button>
           </form>
         </div>
+
+
       </section>
 
       <section id="hosting-section" class="panel hidden">
         <h2>Room Ready</h2>
+        <p class="subtitle">Share this room code or QR. Keep this app open until the receiver connects.</p>
         <div class="code-display">
           <span id="my-peer-id" class="large-code">------</span>
         </div>
         <div id="qrcode-container" class="qrcode-container"></div>
-        <div class="host-actions" style="grid-template-columns: 1fr 1fr;">
+        <div class="host-actions">
           <button id="btn-copy-code" class="btn btn-secondary">Copy Code</button>
           <button id="btn-copy-link" class="btn btn-secondary">Copy Link</button>
         </div>
@@ -85,23 +136,25 @@
 
       <section id="share-section" class="panel hidden">
         <div class="room-pill">
-          <span>Connected</span>
+          <span>Connected peers</span>
           <strong id="remote-peer-id">------</strong>
         </div>
 
         <div id="drop-zone" class="drop-zone">
-          <p class="drop-title">Drop files here</p>
-          <div class="picker-group">
-            <button id="btn-pick-files" class="btn btn-secondary" type="button">Files</button>
-            <button id="btn-pick-folder" class="btn btn-secondary" type="button">Folder</button>
-          </div>
           <input type="file" id="file-input" hidden multiple>
           <input type="file" id="folder-input" hidden webkitdirectory directory multiple>
+          <p class="drop-title">Drop files or folders here</p>
+          <p class="drop-help">The queue supports multiple files and recursive folder transfer.</p>
+          <div class="picker-group">
+            <button id="btn-pick-files" class="btn btn-secondary" type="button">Choose Files</button>
+            <button id="btn-pick-folder" class="btn btn-secondary" type="button">Choose Folder</button>
+          </div>
         </div>
 
         <div class="note-box">
-          <textarea id="text-note" rows="2" placeholder="Send a message..."></textarea>
-          <button id="btn-send-note" class="btn btn-secondary full">Send Note</button>
+          <label for="text-note">Quick message</label>
+          <textarea id="text-note" rows="2" placeholder="Send a short text note to paired device"></textarea>
+          <button id="btn-send-note" class="btn btn-secondary">Send Note</button>
         </div>
 
         <div id="note-inbox" class="note-inbox"></div>
@@ -110,7 +163,7 @@
       <section id="transfers-panel" class="panel hidden">
         <div class="panel-header">
           <h2>Transfers</h2>
-          <button id="btn-save-all" class="btn btn-secondary" type="button" disabled>Save All</button>
+          <button id="btn-save-all" class="btn btn-secondary" type="button" disabled>Save All (Archive)</button>
         </div>
         <div class="transfer-filters">
           <div class="history-tabs">
@@ -119,20 +172,30 @@
             <button class="history-tab" data-history-tab="sent" type="button">Sent</button>
           </div>
         </div>
+
         <div id="transfer-list" class="transfer-list"></div>
       </section>
+
+
+
     </main>
 
     <div id="scanner-modal" class="modal hidden">
-        <div class="modal-card">
+      <div class="modal-card">
+        <h3>Scan Room QR</h3>
+        <div class="scanner-container">
           <div id="qr-reader"></div>
-          <button id="btn-close-scanner" class="btn btn-ghost full" style="margin-top: 10px;">Close</button>
+          <div id="qr-skeleton" class="qr-skeleton">
+            <div class="skeleton-viewer"></div>
+            <span>Accessing Camera...</span>
+          </div>
         </div>
+        <button id="btn-close-scanner" class="btn btn-ghost full">Close Camera</button>
+      </div>
     </div>
 
     <footer>
-
-      <p>Direct P2P · No size limits</p>
+      <p>Direct end-to-end transfer. No file size cap from ShareVia itself.</p>
     </footer>
   </div>
 
@@ -141,5 +204,4 @@
   <script src="html5-qrcode.min.js"></script>
   <script src="sidepanel.js"></script>
 </body>
-
 </html>
