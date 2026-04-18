@@ -950,16 +950,13 @@ body.web-join-mode footer {
   height: 36px;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.05);
-  overflow: hidden;
+  overflow: visible; /* To allow icon overlap if needed, or hidden if clip */
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(0,0,0,0.04);
-}
-
-.transfer-preview-thumb:empty {
-  display: none;
+  position: relative;
 }
 
 .transfer-title-wrap {
@@ -1000,31 +997,33 @@ body.web-join-mode footer {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .direction-icon {
-  display: inline-flex;
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 800;
-  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 900;
+  z-index: 10;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
 .direction-icon.outgoing {
-  background: rgba(46, 125, 50, 0.1);
-  color: #2e7d32;
+  background: #388e3c;
+  color: #fff;
 }
 
 .direction-icon.incoming {
-  background: rgba(21, 101, 192, 0.1);
-  color: #1565c0;
+  background: #1976d2;
+  color: #fff;
 }
 
 .transfer-meta {

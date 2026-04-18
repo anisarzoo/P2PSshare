@@ -1397,6 +1397,11 @@ function createTransferUI(id, name, size, direction, timestamp = Date.now()) {
   // Preview container for completed files
   const previewThumb = document.createElement('div');
   previewThumb.className = 'transfer-preview-thumb';
+  const icon = document.createElement('span');
+  icon.className = `direction-icon ${direction}`;
+  icon.textContent = direction === 'outgoing' ? '↑' : '↓';
+  
+  previewThumb.appendChild(icon);
   head.appendChild(previewThumb);
 
   const titleWrap = document.createElement('div');
@@ -1405,11 +1410,6 @@ function createTransferUI(id, name, size, direction, timestamp = Date.now()) {
   const title = document.createElement('span');
   title.className = 'transfer-name';
   
-  const icon = document.createElement('span');
-  icon.className = `direction-icon ${direction}`;
-  icon.textContent = direction === 'outgoing' ? '↑' : '↓';
-  
-  title.appendChild(icon);
   title.appendChild(document.createTextNode(name));
   titleWrap.appendChild(title);
 
@@ -1561,6 +1561,7 @@ function addDownloadAction(id, url, fileName) {
   if (!headRight) return;
 
   const record = state.incomingTransfers.get(id) || 
+                 state.outgoingTransfers.get(id) ||
                  state.receivedArchiveItems.find(i => i.id === id); 
 
   // Make the whole card clickable for preview
@@ -1608,7 +1609,8 @@ function addDownloadAction(id, url, fileName) {
       iconSpan.style.fontSize = '1.2rem';
       
       const mime = (record && record.mime) || '';
-      if (mime.startsWith('audio/')) {
+      const lowerName = (record.name || '').toLowerCase();
+      if (mime.startsWith('audio/') || lowerName.endsWith('.mp3') || lowerName.endsWith('.wav')) {
         iconSpan.textContent = '🎵';
       } else if (mime.startsWith('video/')) {
         // Video Thumbnail: Use a video element at the 1-second mark
@@ -1621,9 +1623,10 @@ function addDownloadAction(id, url, fileName) {
         videoThumb.style.objectFit = 'cover';
         thumbContainer.appendChild(videoThumb);
         return; // Skip the iconSpan append
-      } else if (mime.includes('zip') || mime.includes('archive')) {
+      } else if (mime.includes('zip') || mime.includes('archive') || lowerName.endsWith('.zip') || lowerName.endsWith('.rar') || lowerName.endsWith('.7z')) {
         iconSpan.textContent = '📦';
-      } else if (mime.startsWith('text/') || mime.includes('pdf')) {
+      } else if (mime.startsWith('text/') || mime.includes('pdf') || mime.includes('document') || mime.includes('sheet') || mime.includes('presentation') || 
+                 lowerName.endsWith('.pdf') || lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls') || lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerName.endsWith('.pptx') || lowerName.endsWith('.txt')) {
         iconSpan.textContent = '📄';
       } else {
         iconSpan.textContent = '📁';
@@ -2075,6 +2078,11 @@ async function sendFileToPeer(connection, file, options = {}) {
 
   const statusSuffix = options.bundledFromFolder ? 'Folder archive sent' : 'Sent';
   markTransferComplete(transferKey, `${statusSuffix} (${formatBytes(file.size)}) at ${formatClockTime(Date.now())}`);
+  
+  // Show preview for sender too
+  const url = URL.createObjectURL(file);
+  addDownloadAction(transferKey, url, file.name);
+
   logActivity(`Sent file: ${file.name} to ${peerLabel}`);
   addTransferHistoryEntry({
     direction: 'sent',
