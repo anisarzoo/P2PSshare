@@ -215,6 +215,9 @@ function handleIncomingData(data, fromPeer) {
     case 'text-note':
       addNoteToInbox(data.text, fromPeer);
       break;
+    case 'file-cancel':
+      handleRemoteCancel(data, fromPeer);
+      break;
   }
 }
 
@@ -337,6 +340,7 @@ function createTransferUI(key, name, size, direction) {
   const cancelBtn = wrapper.querySelector(`#cancel-${key}`);
   cancelBtn.onclick = (e) => {
       e.stopPropagation();
+      notifyCancel(key);
       markTransferCancelled(key);
   };
 
@@ -344,15 +348,10 @@ function createTransferUI(key, name, size, direction) {
 }
 
 function updateTransferProgress(key, progress, label) {
-  const bar = document.getElementById(`progress-${key}`);
-  const status = document.getElementById(`status-${id}`); // Wait, id vs key
-  
-  // Re-identifying the elements by ID as we do in web
   const barEl = document.getElementById(`progress-${key}`);
   const statusEl = document.getElementById(`status-${key}`);
   
-  if (!barEl || barEl.classList.contains('complete')) return;
-
+  if (!barEl || barEl.classList.contains('complete') || barEl.classList.contains('cancelled')) return;
   const p = Math.max(0, Math.min(progress, 100));
   barEl.style.width = p + '%';
   if (statusEl && label) statusEl.textContent = label;
@@ -453,6 +452,25 @@ function addDownloadAction(id, url, name) {
         a.click();
     };
     foot.appendChild(saveBtn);
+}
+
+function notifyCancel(key) {
+    const conn = Array.from(state.connections.values())[0];
+    if (!conn) return;
+
+    // In extension key is "fromPeer-transferId" or "me-transferId"
+    const parts = key.split('-');
+    const transferId = parts[parts.length - 1];
+
+    conn.send({
+        type: 'file-cancel',
+        transferId: transferId
+    });
+}
+
+function handleRemoteCancel(data, fromPeer) {
+    const key = `${fromPeer}-${data.transferId}`;
+    markTransferCancelled(key);
 }
 
 function addNoteToInbox(text, sender) {
