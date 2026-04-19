@@ -33,11 +33,16 @@ const ID_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 /** E2EE Crypto Suite **/
 async function encryptPayload(data) {
-  const secret = String(state.e2eeSecret || '').trim().toUpperCase();
-  if (!secret || !data) return data;
+  // Watchdog fallback
+  let secret = state.e2eeSecret || (elements.myPeerId ? elements.myPeerId.textContent : null) || (elements.webJoinIdInput ? elements.webJoinIdInput.value : null);
+  secret = String(secret || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  if (!secret || secret.length < 6 || !data) {
+    console.log('[E2EE] Skipping encryption: No valid key found.');
+    return data;
+  }
   
-  console.log(`[E2EE] Encrypting ${data.type}...`);
-  
+  console.warn(`[E2EE] Encrypting ${data.type} with key: ${secret}`);
   try {
     const encoder = new TextEncoder();
 
@@ -89,8 +94,13 @@ async function encryptPayload(data) {
 async function decryptPayload(wrapped) {
   if (!wrapped || wrapped.type !== 'e2ee-wrap') return wrapped;
   
-  const secret = state.e2eeSecret;
-  if (!secret) return wrapped;
+  let secret = state.e2eeSecret || (elements.myPeerId ? elements.myPeerId.textContent : null) || (elements.webJoinIdInput ? elements.webJoinIdInput.value : null);
+  secret = String(secret || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  if (!secret || secret.length < 6) {
+    console.warn('[E2EE] Cannot decrypt in Extension: No key available.');
+    return null;
+  }
 
   try {
     const encoder = new TextEncoder();
