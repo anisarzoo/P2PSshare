@@ -2464,15 +2464,54 @@ function extractRoomId(rawText) {
 }
 
 async function startScanner() {
-  elements.scannerModal.classList.remove('hidden');
-
-  if (!window.Html5Qrcode) {
-    alert('QR scanner is unavailable in this browser.');
+  const permissionStatus = await checkCameraPermission();
+  
+  if (permissionStatus === 'denied') {
+    showCustomModal('Camera Access Blocked', 'You have blocked camera access. To fix this: \n\n1. Click the **Lock icon** in the address bar.\n2. Set **Camera** to **Allow**.\n3. Click "Try Again" below.');
     return;
   }
 
-  // UX Improvement: Decouple modal open from heavy camera start 
-  // for instant UI feedback
+  elements.scannerModal.classList.remove('hidden');
+  
+  if (permissionStatus === 'prompt') {
+    if (elements.qrSkeleton) elements.qrSkeleton.classList.add('hidden');
+    // Show a pre-prompt UI inside the scanner area
+    const readerEl = document.getElementById('qr-reader');
+    readerEl.innerHTML = `
+      <div class="permission-pre-prompt" style="text-align:center; padding: 40px 20px;">
+        <div style="font-size: 3rem; margin-bottom: 20px;">📷</div>
+        <p style="margin-bottom: 25px; color: rgba(255,255,255,0.9);">Camera access is required to scan QR codes.</p>
+        <button id="btn-request-perm" class="btn btn-secondary full">Allow Camera</button>
+      </div>
+    `;
+    document.getElementById('btn-request-perm').onclick = () => {
+      readerEl.innerHTML = '';
+      if (elements.qrSkeleton) elements.qrSkeleton.classList.remove('hidden');
+      initAndStartScanner();
+    };
+    return;
+  }
+
+  initAndStartScanner();
+}
+
+async function checkCameraPermission() {
+  try {
+    if (!navigator.permissions || !navigator.permissions.query) return 'prompt';
+    const result = await navigator.permissions.query({ name: 'camera' });
+    return result.state; // 'granted', 'denied', or 'prompt'
+  } catch (e) {
+    return 'prompt';
+  }
+}
+
+async function initAndStartScanner() {
+  if (!window.Html5Qrcode) {
+    showCustomModal('Unavailable', 'QR scanner is unavailable in this browser.');
+    return;
+  }
+  
+  elements.scannerModal.classList.remove('hidden');
   await new Promise(r => setTimeout(r, 100));
 
   try {
@@ -2511,14 +2550,27 @@ async function startScanner() {
   }
 }
 
-function showCustomModal(title, message) {
+function showCustomModal(title, message, options = {}) {
   const modal = document.getElementById('message-modal');
   const titleEl = document.getElementById('msg-modal-title');
   const bodyEl = document.getElementById('msg-modal-body');
+  const closeBtn = document.getElementById('btn-close-msg-modal');
   
   if (modal && titleEl && bodyEl) {
     titleEl.textContent = title;
-    bodyEl.innerHTML = message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    bodyEl.innerHTML = message.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    if (title === 'Camera Access Blocked') {
+       closeBtn.textContent = 'Try Again';
+       closeBtn.onclick = () => {
+         modal.classList.add('hidden');
+         startScanner();
+       };
+    } else {
+       closeBtn.textContent = 'Got it';
+       closeBtn.onclick = () => modal.classList.add('hidden');
+    }
+
     modal.classList.remove('hidden');
   }
 }

@@ -841,16 +841,60 @@ function applyConfigToUI() {
 
 // --- QR Scanner ---
 async function startScanner() {
-  elements.scannerModal.classList.remove('hidden');
-  if (!state.html5QrCode) state.html5QrCode = new Html5Qrcode("qr-reader");
+  const permissionStatus = await checkCameraPermission();
+  
+  if (permissionStatus === 'denied') {
+    showCustomModal('Camera Access Blocked', 'You have blocked camera access for this extension. \n\n1. Open Extension Settings.\n2. Enable Camera permissions.\n3. Click "Try Again" below.');
+    return;
+  }
+
+  showSection(elements.shareSection);
+  document.getElementById('scanner-modal').classList.remove('hidden');
+
+  if (permissionStatus === 'prompt') {
+    const readerEl = document.getElementById('qr-reader');
+    readerEl.innerHTML = `
+      <div class="permission-pre-prompt" style="text-align:center; padding: 40px 10px;">
+        <div style="font-size: 2.5rem; margin-bottom: 15px;">📷</div>
+        <p style="margin-bottom: 20px; color: rgba(255,255,255,0.9); font-size: 0.9rem;">Camera access is required.</p>
+        <button id="btn-request-perm" class="btn btn-secondary full">Allow Camera</button>
+      </div>
+    `;
+    document.getElementById('btn-request-perm').onclick = () => {
+      readerEl.innerHTML = '';
+      initAndStartScanner();
+    };
+    return;
+  }
+
+  initAndStartScanner();
+}
+
+async function checkCameraPermission() {
   try {
+    if (!navigator.permissions || !navigator.permissions.query) return 'prompt';
+    const result = await navigator.permissions.query({ name: 'camera' });
+    return result.state;
+  } catch (e) {
+    return 'prompt';
+  }
+}
+
+async function initAndStartScanner() {
+  try {
+    if (!state.html5QrCode) {
+      state.html5QrCode = new Html5Qrcode("qr-reader");
+    }
+    
+    document.getElementById('qr-skeleton').classList.add('hidden');
+    
     await state.html5QrCode.start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: 200 },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
       (decodedText) => {
         const id = extractRoomId(decodedText);
         if (id) {
-          if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
+          playNotificationSound('silent');
           elements.webJoinIdInput.value = id;
           stopScanner();
           elements.btnWebJoin.click();
@@ -863,9 +907,9 @@ async function startScanner() {
     state.scannerActive = false;
     const errStr = String(err.name || err || '');
     if (errStr.includes('NotAllowedError') || errStr.includes('Permission denied')) {
-      showCustomModal('Camera Access Denied', 'To scan QR codes, please enable camera permissions in your **extension settings** or browser site settings.');
+      showCustomModal('Camera Access Denied', 'To scan QR codes, please enable camera permissions in settings.');
     } else {
-      showCustomModal('Camera Error', 'We couldn\'t access your camera. Please try again or enter the room code manually.');
+      showCustomModal('Camera Error', 'We couldn\'t access your camera.');
     }
     stopScanner();
   }
@@ -875,10 +919,23 @@ function showCustomModal(title, message) {
   const modal = document.getElementById('message-modal');
   const titleEl = document.getElementById('msg-modal-title');
   const bodyEl = document.getElementById('msg-modal-body');
+  const closeBtn = document.getElementById('btn-close-msg-modal');
   
   if (modal && titleEl && bodyEl) {
     titleEl.textContent = title;
-    bodyEl.innerHTML = message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    bodyEl.innerHTML = message.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    if (title === 'Camera Access Blocked') {
+       closeBtn.textContent = 'Try Again';
+       closeBtn.onclick = () => {
+         modal.classList.add('hidden');
+         startScanner();
+       };
+    } else {
+       closeBtn.textContent = 'Got it';
+       closeBtn.onclick = () => modal.classList.add('hidden');
+    }
+
     modal.classList.remove('hidden');
   }
 }
