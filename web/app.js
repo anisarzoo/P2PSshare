@@ -2701,7 +2701,7 @@ function initialize() {
   // Wake up signaling server early (Render.com free tier cold start mitigation)
   if (state.config.signalingHost) {
     const protocol = state.config.signalingSecure ? 'https' : 'http';
-    fetch(`${protocol}://${state.config.signalingHost}/`).catch(() => {});
+    fetch(`${protocol}://${state.config.signalingHost}${state.config.signalingPath}`).catch(() => {});
   }
 
   setupSidebarEvents();
