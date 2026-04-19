@@ -33,8 +33,10 @@ const ID_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 /** E2EE Crypto Suite **/
 async function encryptPayload(data) {
-  const secret = String(state.e2eeSecret || '').trim();
+  const secret = String(state.e2eeSecret || '').trim().toUpperCase();
   if (!secret || !data) return data;
+  
+  console.log(`[E2EE] Encrypting ${data.type}...`);
   
   try {
     const encoder = new TextEncoder();
@@ -115,6 +117,7 @@ async function decryptPayload(wrapped) {
 
     const decryptedStr = new TextDecoder().decode(decrypted);
     const data = JSON.parse(decryptedStr);
+    console.log(`[E2EE] Decrypted ${data.type} successfully.`);
 
     // Restore ArrayBuffer from Base64 if it was binary
     if (data._isBinary && data.chunk) {

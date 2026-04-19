@@ -532,9 +532,10 @@ function generateRoomCode() {
 
 /** E2EE Crypto Suite **/
 async function encryptPayload(data) {
-  const secret = String(state.e2eeSecret || '').trim();
+  const secret = String(state.e2eeSecret || '').trim().toUpperCase();
   if (!secret || !data) return data;
   
+  console.log(`[E2EE] Encrypting ${data.type} with key hash: ${secret.length}`);
   try {
     const encoder = new TextEncoder();
     
@@ -615,6 +616,7 @@ async function decryptPayload(wrapped) {
 
     const decryptedStr = new TextDecoder().decode(decrypted);
     const data = JSON.parse(decryptedStr);
+    console.log(`[E2EE] Decrypted ${data.type} successfully.`);
 
     // Restore ArrayBuffer from Base64 if it was binary
     if (data._isBinary && data.chunk) {
@@ -2438,7 +2440,7 @@ async function queueNote() {
 
   await safeSend({
     type: 'text-note',
-    v2Type: mapLegacyEventToV2('text-note'),
+    v2Type: 'transfer.note',
     text,
   }, { silent: true });
 
