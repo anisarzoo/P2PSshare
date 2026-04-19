@@ -2439,20 +2439,22 @@ function extractRoomId(rawText) {
   if (!rawText) return null;
 
   const trimmed = String(rawText).trim();
-  if (/^\d{6}$/.test(trimmed)) {
-    return trimmed;
+  const codeRegex = /^[A-Z0-9]{6}$/i;
+  
+  if (codeRegex.test(trimmed)) {
+    return trimmed.toUpperCase();
   }
 
   try {
     const parsedUrl = new URL(trimmed);
     const hash = parsedUrl.hash.replace('#', '').trim();
-    if (/^\d{6}$/.test(hash)) {
-      return hash;
+    if (codeRegex.test(hash)) {
+      return hash.toUpperCase();
     }
 
     const queryRoom = parsedUrl.searchParams.get('room');
-    if (queryRoom && /^\d{6}$/.test(queryRoom)) {
-      return queryRoom;
+    if (queryRoom && codeRegex.test(queryRoom)) {
+      return queryRoom.toUpperCase();
     }
   } catch (error) {
     return null;
@@ -2495,7 +2497,13 @@ async function startScanner() {
     logActivity('Scanner started.');
   } catch (error) {
     console.error('Scanner start error:', error);
-    alert('Unable to start camera. Use room code instead.');
+    if (error.name === 'NotAllowedError') {
+      alert('Camera access blocked. Click the "Lock" or "Controls" icon next to the website URL (top left) to enable camera permissions and try again.');
+    } else if (error.name === 'NotFoundError') {
+      alert('No camera found on this device.');
+    } else {
+      alert('Unable to start camera. Error: ' + error.name);
+    }
     stopScanner();
   }
 }

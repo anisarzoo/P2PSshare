@@ -856,7 +856,11 @@ async function startScanner() {
     state.scannerActive = true;
   } catch (err) {
     console.error(err);
-    alert("Camera access failed");
+    if (err.name === 'NotAllowedError') {
+      alert('Camera access blocked. Please check your browser extension settings or site permissions to allow camera access.');
+    } else {
+      alert("Camera access failed: " + err.name);
+    }
     stopScanner();
   }
 }
@@ -870,8 +874,12 @@ function stopScanner() {
 }
 
 function extractRoomId(text) {
-  const match = text.match(/#(\d{6})$/);
-  return match ? match[1] : (text.match(/^\d{6}$/) ? text : null);
+  const codeRegex = /[A-Z0-9]{6}/i;
+  const match = text.match(/#([A-Z0-9]{6})$/i);
+  if (match) return match[1].toUpperCase();
+  
+  const rawMatch = text.trim().match(/^[A-Z0-9]{6}$/i);
+  return rawMatch ? rawMatch[0].toUpperCase() : null;
 }
 
 // Start
