@@ -474,6 +474,42 @@ function formatThroughput(transferredBytes, startTs) {
   return `${formatBytes(perSec)}/s`;
 }
 
+function playNotificationSound(type = 'default') {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    
+    const audioContent = new AudioCtx();
+    const oscillator = audioContent.createOscillator();
+    const gainNode = audioContent.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContent.destination);
+
+    if (type === 'message' || type === 'note') {
+      // Soft high-pitched "ping" for messages
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioContent.currentTime); 
+      oscillator.frequency.exponentialRampToValueAtTime(1046.50, audioContent.currentTime + 0.1); // C6
+      gainNode.gain.setValueAtTime(0.1, audioContent.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContent.currentTime + 0.3);
+      oscillator.start();
+      oscillator.stop(audioContent.currentTime + 0.3);
+    } else {
+      // Slightly deeper "boop-beep" for file starts
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(523.25, audioContent.currentTime); // C5
+      oscillator.frequency.exponentialRampToValueAtTime(783.99, audioContent.currentTime + 0.1); // G5
+      gainNode.gain.setValueAtTime(0.1, audioContent.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContent.currentTime + 0.4);
+      oscillator.start();
+      oscillator.stop(audioContent.currentTime + 0.4);
+    }
+  } catch (e) {
+    // Fail silently if audio is blocked
+  }
+}
+
 function generateRoomCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
@@ -922,17 +958,36 @@ function initPeer(preferredId = undefined) {
   state.peer.on('open', (id) => {
     state.myId = id;
     state.reconnectAttempts = 0;
+    
+    // Ensure UI is updated (in case it wasn't set optimistically or ID changed)
     elements.myPeerId.textContent = id;
     elements.myPeerId.classList.remove('loading');
     generateQRCode(id);
 
-    const joiningTarget = state.pendingJoinId;
+    // Update titles for 'Ready' state
+    const titleEl = elements.hostingSection.querySelector('h2');
+    const subEl = elements.hostingSection.querySelector('.subtitle');
+    if (titleEl) titleEl.textContent = 'Room Ready';
+    if (subEl) subEl.textContent = 'Share this room code or QR. Keep this app open until the receiver connects.';
 
+    const joiningTarget = state.pendingJoinId;
 
     if (joiningTarget) {
       const target = joiningTarget;
       state.pendingJoinId = null;
       logActivity(`Connecting to room ${target}.`);
+      
+      // Update Join button back to original state (it's hidden now anyway)
+      if (elements.btnWebJoin) {
+        elements.btnWebJoin.disabled = false;
+        elements.btnWebJoin.textContent = 'Join';
+        elements.btnWebJoin.classList.remove('pulse');
+      }
+
+      if (elements.remotePeerId) {
+        elements.remotePeerId.textContent = `Establishing P2P: ${target}`;
+      }
+
       const outgoing = state.peer.connect(target, { reliable: true });
       setupConnection(outgoing, 'Outgoing');
       updateStatus('Connecting', 'waiting');
@@ -1109,17 +1164,29 @@ function beginSendDiscovery() {
     return;
   }
 
-  elements.myPeerId.classList.add('loading');
-  elements.myPeerId.textContent = '------';
-  if (elements.qrcodeContainer) elements.qrcodeContainer.classList.add('loading');
-
   const roomId = generateRoomCode();
+  
+  // Optimistic UI: show the code and QR immediately
+  elements.myPeerId.textContent = roomId;
+  elements.myPeerId.classList.remove('loading');
+  generateQRCode(roomId);
+  
+  if (elements.qrcodeContainer) elements.qrcodeContainer.classList.remove('loading');
+
   state.dashboardMode = 'send';
   state.pendingJoinId = null;
   state.lastJoinRoomId = null;
   state.wasHosting = true;
   state.lastRoomId = roomId;
+  
   showSection(elements.hostingSection);
+  
+  // Update UI titles/subtitles for 'Connecting' state
+  const titleEl = elements.hostingSection.querySelector('h2');
+  const subEl = elements.hostingSection.querySelector('.subtitle');
+  if (titleEl) titleEl.textContent = 'Creating Room...';
+  if (subEl) subEl.textContent = 'Connecting to signaling server...';
+
   updateStatus('Creating room', 'waiting');
   logActivity(`Creating room ${roomId}.`);
   initPeer(roomId);
@@ -1162,10 +1229,25 @@ function joinRoom(inputRoomId) {
     return;
   }
 
+  // Visual feedback on the button
+  if (elements.btnWebJoin) {
+    elements.btnWebJoin.disabled = true;
+    elements.btnWebJoin.textContent = 'Joining...';
+    elements.btnWebJoin.classList.add('pulse');
+  }
+
   state.dashboardMode = 'receive';
   state.pendingJoinId = roomId;
   state.lastJoinRoomId = roomId;
   state.wasHosting = false;
+  
+  // Transition to share section immediately with "Connecting" status
+  showSection(elements.shareSection);
+  if (elements.remotePeerId) {
+    elements.remotePeerId.textContent = `Connecting to ${roomId}...`;
+    elements.remotePeerId.classList.add('loading-text');
+  }
+
   updateStatus('Preparing', 'waiting');
   logActivity(`Preparing to join room ${roomId}.`);
   initPeer();
@@ -1770,6 +1852,7 @@ function handleIncomingFileStart(payload, fromPeerId = '') {
   state.incomingTransfers.set(transferKey, record);
   createTransferUI(transferKey, `${payload.name} from ${fromLabel}`, payload.size, 'incoming', record.startedAt);
   logActivity(`Receiving file: ${payload.name} from ${fromLabel}`);
+  playNotificationSound('file');
 }
 
 function handleIncomingFileChunk(payload, fromPeerId = '') {
@@ -1872,6 +1955,7 @@ function handleIncomingNote(payload, fromPeerId = '') {
   const fromLabel = normalizePeerLabel(fromPeerId);
   addNoteToInbox(`${fromLabel}: ${payload.text}`, false);
   logActivity(`Text note received from ${fromLabel}.`);
+  playNotificationSound('message');
 }
 
 function addNoteToInbox(text, isSelf) {
@@ -2413,6 +2497,13 @@ function initialize() {
     window.visualViewport.addEventListener('scroll', applyNativeSafeTopInset);
   }
   registerServiceWorker();
+
+  // Wake up signaling server early (Render.com free tier cold start mitigation)
+  if (state.config.signalingHost) {
+    const protocol = state.config.signalingSecure ? 'https' : 'http';
+    fetch(`${protocol}://${state.config.signalingHost}/ping`).catch(() => {});
+  }
+
   setupSidebarEvents();
 
   // Mobile tab suspension resilience: when user returns from WhatsApp etc.,

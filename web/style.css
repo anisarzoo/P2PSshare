@@ -1673,4 +1673,15 @@ footer {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
   pointer-events: auto;
-}
+}
+
+.loading-text {
+  animation: textPulse 1.5s infinite ease-in-out;
+  display: inline-block;
+}
+
+@keyframes textPulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.98); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
