@@ -29,6 +29,76 @@ const state = {
   unreadNotesCount: 0,
 };
 
+const ID_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+
+/** E2EE Crypto Suite **/
+async function encryptPayload(data) {
+  const secret = state.myId || Array.from(state.connections.keys())[0];
+  if (!secret) return data;
+  
+  try {
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', 
+      encoder.encode(secret.padEnd(32, 's')),
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt']
+    );
+
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      keyMaterial,
+      encoder.encode(JSON.stringify(data))
+    );
+
+    return {
+      type: 'e2ee-wrap',
+      iv: Array.from(iv),
+      cipher: Array.from(new Uint8Array(encrypted))
+    };
+  } catch (e) {
+    console.warn('Encryption failed', e);
+    return data;
+  }
+}
+
+async function decryptPayload(wrapped) {
+  if (!wrapped || wrapped.type !== 'e2ee-wrap') return wrapped;
+  
+  const secret = state.myId || Array.from(state.connections.keys())[0];
+  if (!secret) return wrapped;
+
+  try {
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', 
+      encoder.encode(secret.padEnd(32, 's')),
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    );
+
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: new Uint8Array(wrapped.iv) },
+      keyMaterial,
+      new Uint8Array(wrapped.cipher)
+    );
+
+    return JSON.parse(new TextDecoder().decode(decrypted));
+  } catch (e) {
+    console.error('Decryption failed. Room code mismatch?', e);
+    return null;
+  }
+}
+
+async function safeSend(conn, payload) {
+  if (!conn || !conn.open) return;
+  const encrypted = await encryptPayload(payload);
+  conn.send(encrypted);
+}
+
 const elements = {
   setupSection: document.getElementById('setup-section'),
   hostingSection: document.getElementById('hosting-section'),
@@ -293,8 +363,8 @@ function setupConnection(conn) {
     logActivity(`Connected to ${normalizePeerLabel(conn.peer)}.`);
   });
 
-  conn.on('data', (data) => {
-    handleIncomingData(data, conn.peer);
+  conn.on('data', async (payload) => {
+    handleIncomingData(payload, conn.peer);
   });
 
   conn.on('close', () => {
@@ -307,7 +377,14 @@ function setupConnection(conn) {
   });
 }
 
-function handleIncomingData(data, fromPeer) {
+async function handleIncomingData(payload, fromPeer) {
+  let data = payload;
+
+  if (payload && payload.type === 'e2ee-wrap') {
+    data = await decryptPayload(payload);
+    if (!data) return; // Drop unauthenticated or corrupt data
+  }
+
   switch (data.type) {
     case 'file-start':
       if (navigator.vibrate) navigator.vibrate(60);
@@ -392,7 +469,7 @@ async function sendFiles(files) {
 
     createTransferUI(key, file.name, file.size, 'outgoing');
 
-    conn.send({
+    await safeSend(conn, {
       type: 'file-start',
       transferId,
       name: file.name,
@@ -403,12 +480,12 @@ async function sendFiles(files) {
     let offset = 0;
     for (let i = 0; i < totalChunks; i++) {
       const chunk = await file.slice(offset, offset + chunkSize).arrayBuffer();
-      conn.send({ type: 'file-chunk', transferId, index: i, chunk });
+      await safeSend(conn, { type: 'file-chunk', transferId, index: i, chunk });
       offset += chunkSize;
       updateTransferProgress(key, (offset / file.size) * 100, `Sending ${(offset / file.size * 100).toFixed(0)}%`);
     }
 
-    conn.send({ type: 'file-end', transferId });
+    await safeSend(conn, { type: 'file-end', transferId });
     
     const url = URL.createObjectURL(file);
     markTransferComplete(key, `Sent at ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`);
@@ -563,7 +640,7 @@ function addDownloadAction(id, url, name) {
     foot.appendChild(saveBtn);
 }
 
-function notifyCancel(key) {
+async function notifyCancel(key) {
     const conn = Array.from(state.connections.values())[0];
     if (!conn) return;
 
@@ -571,7 +648,7 @@ function notifyCancel(key) {
     const parts = key.split('-');
     const transferId = parts[parts.length - 1];
 
-    conn.send({
+    await safeSend(conn, {
         type: 'file-cancel',
         transferId: transferId
     });
@@ -637,7 +714,10 @@ function resetApp() {
 
 function setupEventListeners() {
   elements.btnDashboardSend.onclick = () => {
-    const roomId = Math.floor(100000 + Math.random() * 900000).toString();
+    let roomId = '';
+    for (let i = 0; i < 6; i++) {
+        roomId += ID_CHARS.charAt(Math.floor(Math.random() * ID_CHARS.length));
+    }
     playNotificationSound('silent');
     
     // Instant UI
@@ -662,8 +742,8 @@ function setupEventListeners() {
   };
 
   elements.btnWebJoin.onclick = () => {
-    const id = elements.webJoinIdInput.value.trim();
-    if (id.length === 6) {
+    const id = elements.webJoinIdInput.value.trim().toUpperCase();
+    if (id.length >= 6) {
       playNotificationSound('silent');
       elements.btnWebJoin.disabled = true;
       elements.btnWebJoin.textContent = 'Joining...';
@@ -702,12 +782,12 @@ function setupEventListeners() {
     sendFiles(e.dataTransfer.files);
   };
 
-  elements.btnSendNote.onclick = () => {
+  elements.btnSendNote.onclick = async () => {
     const text = elements.textNote.value.trim();
     if (!text) return;
     const conn = Array.from(state.connections.values())[0];
     if (conn) {
-      conn.send({ type: 'text-note', text });
+      await safeSend(conn, { type: 'text-note', text });
       addNoteToInbox(text, 'me');
       elements.textNote.value = '';
     }

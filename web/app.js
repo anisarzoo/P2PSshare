@@ -519,8 +519,76 @@ function playNotificationSound(type = 'default') {
   } catch (e) {}
 }
 
+const ID_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+
 function generateRoomCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += ID_CHARS.charAt(Math.floor(Math.random() * ID_CHARS.length));
+  }
+  return result;
+}
+
+/** E2EE Crypto Suite **/
+async function encryptPayload(data) {
+  const secret = state.pendingJoinId || state.lastJoinRoomId || state.myId;
+  if (!secret) return data;
+  
+  try {
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', 
+      encoder.encode(secret.padEnd(32, 's')),
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt']
+    );
+
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      keyMaterial,
+      encoder.encode(JSON.stringify(data))
+    );
+
+    return {
+      type: 'e2ee-wrap',
+      iv: Array.from(iv),
+      cipher: Array.from(new Uint8Array(encrypted))
+    };
+  } catch (e) {
+    console.warn('Encryption failed', e);
+    return data;
+  }
+}
+
+async function decryptPayload(wrapped) {
+  if (!wrapped || wrapped.type !== 'e2ee-wrap') return wrapped;
+  
+  const secret = state.pendingJoinId || state.lastJoinRoomId || state.myId;
+  if (!secret) return wrapped;
+
+  try {
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', 
+      encoder.encode(secret.padEnd(32, 's')),
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    );
+
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: new Uint8Array(wrapped.iv) },
+      keyMaterial,
+      new Uint8Array(wrapped.cipher)
+    );
+
+    return JSON.parse(new TextDecoder().decode(decrypted));
+  } catch (e) {
+    console.error('Decryption failed. Room code mismatch?', e);
+    return null;
+  }
 }
 
 function generateJoinUrl(roomId) {
@@ -902,13 +970,14 @@ window.handleNativeBridgeMessage = function handleNativeBridgeMessage(payload) {
 };
 
 
-function safeSendToConnection(connection, payload, options = {}) {
+async function safeSendToConnection(connection, payload, options = {}) {
   if (!connection || !connection.open) {
     return false;
   }
 
   try {
-    connection.send(payload);
+    const finalPayload = await encryptPayload(payload);
+    connection.send(finalPayload);
     return true;
   } catch (error) {
     console.error('Send failed:', error);
@@ -927,27 +996,27 @@ function getConnectionByPeer(peerId) {
   return state.connections.get(normalized) || null;
 }
 
-function sendToPeer(peerId, payload, options = {}) {
+async function sendToPeer(peerId, payload, options = {}) {
   const connection = getConnectionByPeer(peerId);
   if (!connection || !connection.open) {
     return false;
   }
 
-  return safeSendToConnection(connection, payload, options);
+  return await safeSendToConnection(connection, payload, options);
 }
 
-function broadcastToConnections(payload, options = {}) {
+async function broadcastToConnections(payload, options = {}) {
   const targets = getOpenConnections();
   if (!targets.length) {
     return false;
   }
 
   let sent = false;
-  targets.forEach((connection) => {
-    if (safeSendToConnection(connection, payload, options)) {
+  for (const connection of targets) {
+    if (await safeSendToConnection(connection, payload, options)) {
       sent = true;
     }
-  });
+  }
   return sent;
 }
 
@@ -1425,7 +1494,7 @@ function setupConnection(connection, sourceLabel) {
     announceCapabilities(peerId);
   });
 
-  connection.on('data', (payload) => {
+  connection.on('data', async (payload) => {
     handleIncomingData(payload, peerId);
   });
 
@@ -1837,10 +1906,17 @@ function addDownloadAction(id, url, fileName) {
   headRight.prepend(buttonGroup);
 }
 
-function handleIncomingData(payload, fromPeerId = '') {
-  if (!payload || typeof payload !== 'object') return;
+async function handleIncomingData(payload, fromPeerId = '') {
+  let data = payload;
 
-  switch (payload.type) {
+  if (payload && payload.type === 'e2ee-wrap') {
+    data = await decryptPayload(payload);
+    if (!data) return; // Drop unauthenticated or corrupt data
+  }
+
+  if (!data || typeof data !== 'object') return;
+
+  switch (data.type) {
     case 'file-start':
       handleIncomingFileStart(payload, fromPeerId);
       break;
@@ -2477,7 +2553,10 @@ function registerServiceWorker() {
 
 function bindEvents() {
   elements.btnDashboardSend && elements.btnDashboardSend.addEventListener('click', beginSendDiscovery);
-  elements.btnWebJoin && elements.btnWebJoin.addEventListener('click', () => joinRoom(elements.webJoinIdInput.value));
+  elements.btnWebJoin && elements.btnWebJoin.addEventListener('click', () => {
+    const roomId = elements.webJoinIdInput.value.trim().toUpperCase();
+    if (roomId) joinRoom(roomId);
+  });
   elements.btnWebScan && elements.btnWebScan.addEventListener('click', startScanner);
 
   const btnCloseScanner = document.getElementById('btn-close-scanner');
