@@ -150,7 +150,7 @@ function init() {
   // Wake up signaling server early (Mitigates Render.com cold start)
   if (state.config.signalingHost) {
     const protocol = state.config.signalingSecure ? 'https' : 'http';
-    fetch(`${protocol}://${state.config.signalingHost}/ping`).catch(() => {});
+    fetch(`${protocol}://${state.config.signalingHost}/`).catch(() => {});
   }
 }
 
