@@ -2499,12 +2499,13 @@ async function startScanner() {
     console.error('Scanner start error:', error);
     state.scannerActive = false; // Reset state if start fails
     
-    if (error === 'NotAllowedError' || (error.name && error.name === 'NotAllowedError')) {
-      showCustomModal('Camera Blocked', 'Camera access is blocked. Click the **Lock icon** in your browser search bar (top left) to allow camera permissions for this site.');
-    } else if (error === 'NotFoundError' || (error.name && error.name === 'NotFoundError')) {
-      showCustomModal('No Camera', 'No camera was found on this device. Please enter the room code manually.');
+    const errStr = String(error.name || error || '');
+    if (errStr.includes('NotAllowedError') || errStr.includes('Permission denied')) {
+      showCustomModal('Camera Access Denied', 'To scan QR codes, please click the **Lock icon** in your browser search bar (top left) and set Camera to **Allow**.');
+    } else if (errStr.includes('NotFoundError') || errStr.includes('DevicesNotFound')) {
+      showCustomModal('No Camera Found', 'We couldn\'t find a camera on this device. Please enter the room code manually.');
     } else {
-      showCustomModal('Camera Error', `Unable to start camera. Error: ${error.name || error || 'Unknown'}`);
+      showCustomModal('Camera Error', 'We ran into a problem starting the camera. Please try refreshing or enter the code manually.');
     }
     stopScanner();
   }

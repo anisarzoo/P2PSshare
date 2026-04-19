@@ -861,10 +861,11 @@ async function startScanner() {
   } catch (err) {
     console.error(err);
     state.scannerActive = false;
-    if (err.name === 'NotAllowedError') {
-      showCustomModal('Camera Blocked', 'Camera access is blocked. Please check your browser **extension settings** or site permissions to allow camera access.');
+    const errStr = String(err.name || err || '');
+    if (errStr.includes('NotAllowedError') || errStr.includes('Permission denied')) {
+      showCustomModal('Camera Access Denied', 'To scan QR codes, please enable camera permissions in your **extension settings** or browser site settings.');
     } else {
-      showCustomModal('Camera Failed', "Camera access failed: " + (err.name || err || 'Unknown'));
+      showCustomModal('Camera Error', 'We couldn\'t access your camera. Please try again or enter the room code manually.');
     }
     stopScanner();
   }
