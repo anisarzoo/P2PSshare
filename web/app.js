@@ -43,6 +43,7 @@ const state = {
   peer: null,
   connections: new Map(),
   myId: '',
+  e2eeSecret: null,
   pendingJoinId: null,
   profileName: localStorage.getItem('sv_profile_name') || '',
   profileAvatar: localStorage.getItem('sv_profile_avatar') || '',
@@ -531,7 +532,7 @@ function generateRoomCode() {
 
 /** E2EE Crypto Suite **/
 async function encryptPayload(data) {
-  const secret = state.pendingJoinId || state.lastJoinRoomId || state.myId;
+  const secret = state.e2eeSecret;
   if (!secret || !data) return data;
   
   try {
@@ -586,7 +587,7 @@ async function encryptPayload(data) {
 async function decryptPayload(wrapped) {
   if (!wrapped || wrapped.type !== 'e2ee-wrap') return wrapped;
   
-  const secret = state.pendingJoinId || state.lastJoinRoomId || state.myId;
+  const secret = state.e2eeSecret;
   if (!secret) return wrapped;
 
   try {
@@ -1320,6 +1321,7 @@ function beginSendDiscovery() {
   playNotificationSound('silent'); 
 
   const roomId = generateRoomCode();
+  state.e2eeSecret = roomId;
   
   // Optimistic UI: show the code and QR immediately
   elements.myPeerId.textContent = roomId;
@@ -1383,6 +1385,8 @@ function joinRoom(inputRoomId) {
     showCustomModal('Invalid Code', 'Please enter a valid **6-character alphanumeric** room code.');
     return;
   }
+
+  state.e2eeSecret = roomId;
 
   // Visual feedback on the button
   if (elements.btnWebJoin) {

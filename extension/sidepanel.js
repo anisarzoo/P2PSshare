@@ -16,9 +16,9 @@ const HISTORY_STORAGE_KEY = 'sharevia_history_ext_v1';
 const WEB_APP_URL = 'https://sharevia.netlify.app/';
 
 const state = {
-  peer: null,
   connections: new Map(),
   myId: '',
+  e2eeSecret: null,
   config: loadConfig(),
   incomingTransfers: new Map(),
   outgoingTransfers: new Map(),
@@ -33,7 +33,7 @@ const ID_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 /** E2EE Crypto Suite **/
 async function encryptPayload(data) {
-  const secret = state.myId || Array.from(state.connections.keys())[0];
+  const secret = state.e2eeSecret;
   if (!secret || !data) return data;
   
   try {
@@ -87,7 +87,7 @@ async function encryptPayload(data) {
 async function decryptPayload(wrapped) {
   if (!wrapped || wrapped.type !== 'e2ee-wrap') return wrapped;
   
-  const secret = state.myId || Array.from(state.connections.keys())[0];
+  const secret = state.e2eeSecret;
   if (!secret) return wrapped;
 
   try {
@@ -762,6 +762,7 @@ function setupEventListeners() {
     for (let i = 0; i < 6; i++) {
         roomId += ID_CHARS.charAt(Math.floor(Math.random() * ID_CHARS.length));
     }
+    state.e2eeSecret = roomId;
     playNotificationSound('silent');
     
     // Instant UI
@@ -788,6 +789,7 @@ function setupEventListeners() {
   elements.btnWebJoin.onclick = () => {
     const id = elements.webJoinIdInput.value.trim().toUpperCase();
     if (id.length >= 6) {
+      state.e2eeSecret = id;
       playNotificationSound('silent');
       elements.btnWebJoin.disabled = true;
       elements.btnWebJoin.textContent = 'Joining...';
