@@ -858,7 +858,7 @@ async function getJsZipCtor() {
     return loaded;
   }
 
-  alert('ZIP engine is unavailable right now. Reopen the app with internet once to cache JSZip.');
+  showCustomModal('Archive Unavailable', 'The ZIP engine is currently unavailable. Please check your internet connection and try again.');
   return null;
 }
 
@@ -912,7 +912,7 @@ function updateSaveAllButtonState() {
 
 async function saveAllReceivedArchive() {
   if (!state.receivedArchiveItems.length) {
-    alert('No received files to archive yet.');
+    showCustomModal('Notice', 'There are no received files to archive yet.');
     return;
   }
 
@@ -1203,7 +1203,7 @@ function handlePeerError(error) {
   }
 
   const type = error && error.type ? error.type : 'unknown';
-  alert(`Connection error: ${type}`);
+  showCustomModal('Connection Error', `A connection error occurred: ${type}`);
   logActivity(`Peer error: ${type}`, 'Warning');
   resetToSetup({ destroyPeer: true });
 }
@@ -1271,7 +1271,7 @@ function hostRoom() {
 
 function beginSendDiscovery() {
   if (hasAnyConnection()) {
-    alert('Already connected. Disconnect the current session first.');
+    showCustomModal('Active Session', 'You are already connected. Please disconnect the current session before starting a new one.');
     return;
   }
   
@@ -1308,7 +1308,7 @@ function beginSendDiscovery() {
 
 function beginReceiveDiscovery() {
   if (hasAnyConnection()) {
-    alert('Already connected. Disconnect the current session first.');
+    showCustomModal('Active Session', 'You are already connected. Please disconnect the current session before joining another one.');
     return;
   }
 
@@ -1318,7 +1318,7 @@ function beginReceiveDiscovery() {
 
 function shareRoomLink() {
   if (!state.myId) {
-    alert('Room is still starting. Please try again in a moment.');
+    showCustomModal('Starting Room', 'The room is still being prepared. Please wait a second and try again.');
     return;
   }
 
@@ -1336,10 +1336,10 @@ function shareRoomLink() {
 }
 
 function joinRoom(inputRoomId) {
-  const roomId = String(inputRoomId || '').trim();
+  const roomId = String(inputRoomId || '').trim().toUpperCase();
 
-  if (!/^\d{6}$/.test(roomId)) {
-    alert('Please enter a valid 6-digit room code.');
+  if (!/^[A-Z0-9]{6}$/.test(roomId)) {
+    showCustomModal('Invalid Code', 'Please enter a valid **6-character alphanumeric** room code.');
     return;
   }
 
@@ -1462,7 +1462,7 @@ function setupConnection(connection, sourceLabel) {
       }
       finalizeConnection(false);
       if (!state.wasHosting) {
-        alert('Connection timed out. The host may have closed their app or the room expired. Please ask for a new room code.');
+        showCustomModal('Connection Timeout', 'The connection timed out. The host might have closed their app or the room has expired. Please ask for a new code.');
       }
     }
   }, CONNECTION_TIMEOUT);
@@ -2150,7 +2150,7 @@ function sleep(ms) {
 
 async function sendSelectedFiles(fileList, items, options = {}) {
   if (!hasOpenConnections()) {
-    alert('Connect to at least one device before sending files.');
+    showCustomModal('Not Connected', 'Please connect to another device before attempting to send files.');
     return;
   }
 
@@ -2369,7 +2369,7 @@ async function sendFileToPeer(connection, file, options = {}) {
 async function sendFile(file, options = {}) {
   const targets = getOpenConnections();
   if (!targets.length) {
-    alert('Connect to at least one device before sending files.');
+    showCustomModal('Not Connected', 'Please connect to another device before attempting to send files.');
     return;
   }
 
@@ -2387,7 +2387,7 @@ function queueNote() {
 
   const openCount = getOpenConnections().length;
   if (!openCount) {
-    alert('Connect first to send notes.');
+    showCustomModal('Not Connected', 'You must be connected to a room before sending notes.');
     return;
   }
 
@@ -2868,7 +2868,7 @@ function setupSidebarEvents() {
     const name = elements.profileNameInput.value.trim();
     state.profileName = name;
     localStorage.setItem('sv_profile_name', name);
-    alert('Profile saved successfully!');
+    showCustomModal('Success', 'Your profile settings have been saved successfully.');
     elements.btnSaveProfile.textContent = "Saved";
     setTimeout(() => { elements.btnSaveProfile.textContent = "Save"; }, 2000);
   });
