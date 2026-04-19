@@ -2471,6 +2471,7 @@ async function startScanner() {
     return;
   }
 
+  lockScroll(true);
   elements.scannerModal.classList.remove('hidden');
   
   if (permissionStatus === 'prompt') {
@@ -2564,6 +2565,7 @@ function showCustomModal(title, message, options = {}) {
   const optBtn = document.getElementById('btn-opt-msg-modal');
   
   if (modal && titleEl && bodyEl) {
+    lockScroll(true);
     titleEl.textContent = title;
     bodyEl.innerHTML = message.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     
@@ -2576,11 +2578,17 @@ function showCustomModal(title, message, options = {}) {
        if (optBtn) {
          optBtn.textContent = 'Close';
          optBtn.classList.remove('hidden');
-         optBtn.onclick = () => modal.classList.add('hidden');
+         optBtn.onclick = () => {
+           modal.classList.add('hidden');
+           lockScroll(false);
+         };
        }
     } else {
        closeBtn.textContent = 'Got it';
-       closeBtn.onclick = () => modal.classList.add('hidden');
+       closeBtn.onclick = () => {
+         modal.classList.add('hidden');
+         lockScroll(false);
+       };
        if (optBtn) optBtn.classList.add('hidden');
     }
 
@@ -2597,9 +2605,14 @@ function stopScanner() {
 
   state.scannerActive = false;
   elements.scannerModal.classList.add('hidden');
+  lockScroll(false);
   if (elements.qrSkeleton) {
     elements.qrSkeleton.classList.remove('hidden');
   }
+}
+
+function lockScroll(lock) {
+  document.body.classList.toggle('no-scroll', lock);
 }
 
 function handleScanResult(decodedText) {

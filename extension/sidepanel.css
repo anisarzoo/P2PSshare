@@ -22,6 +22,10 @@ body {
   overflow-y: auto;
 }
 
+body.no-scroll {
+  overflow: hidden !important;
+}
+
 .hidden { display: none !important; }
 
 .status-msg {

@@ -25,6 +25,11 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+body.no-scroll {
+  overflow: hidden;
+  height: 100vh;
+}
+
 html {
   scrollbar-width: thin;
   scrollbar-color: rgba(11, 106, 97, 0.25) transparent;
