@@ -474,12 +474,23 @@ function formatThroughput(transferredBytes, startTs) {
   return `${formatBytes(perSec)}/s`;
 }
 
+let audioContextInstance = null;
+
 function playNotificationSound(type = 'default') {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     
-    const audioContent = new AudioCtx();
+    if (!audioContextInstance) {
+      audioContextInstance = new AudioCtx();
+    }
+    
+    // Resume context if suspended (common in many browsers)
+    if (audioContextInstance.state === 'suspended') {
+      audioContextInstance.resume();
+    }
+    
+    const audioContent = audioContextInstance;
     const oscillator = audioContent.createOscillator();
     const gainNode = audioContent.createGain();
 
@@ -490,7 +501,7 @@ function playNotificationSound(type = 'default') {
       // Soft high-pitched "ping" for messages
       oscillator.type = 'sine';
       oscillator.frequency.setValueAtTime(880, audioContent.currentTime); 
-      oscillator.frequency.exponentialRampToValueAtTime(1046.50, audioContent.currentTime + 0.1); // C6
+      oscillator.frequency.exponentialRampToValueAtTime(1046.50, audioContent.currentTime + 0.1); 
       gainNode.gain.setValueAtTime(0.1, audioContent.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.001, audioContent.currentTime + 0.3);
       oscillator.start();
@@ -498,15 +509,15 @@ function playNotificationSound(type = 'default') {
     } else {
       // Slightly deeper "boop-beep" for file starts
       oscillator.type = 'triangle';
-      oscillator.frequency.setValueAtTime(523.25, audioContent.currentTime); // C5
-      oscillator.frequency.exponentialRampToValueAtTime(783.99, audioContent.currentTime + 0.1); // G5
+      oscillator.frequency.setValueAtTime(523.25, audioContent.currentTime); 
+      oscillator.frequency.exponentialRampToValueAtTime(783.99, audioContent.currentTime + 0.1); 
       gainNode.gain.setValueAtTime(0.1, audioContent.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.001, audioContent.currentTime + 0.4);
       oscillator.start();
-      oscillator.stop(audioContent.currentTime + 0.4);
+      oscillator.stop(audioContent.currentTime + 1.0); // Slightly longer stop to avoid clipping
     }
   } catch (e) {
-    // Fail silently if audio is blocked
+    console.warn('Audio play failed', e);
   }
 }
 
@@ -1163,6 +1174,9 @@ function beginSendDiscovery() {
     alert('Already connected. Disconnect the current session first.');
     return;
   }
+  
+  // Audio unlock for mobile browsers
+  playNotificationSound('silent'); 
 
   const roomId = generateRoomCode();
   
@@ -1250,6 +1264,10 @@ function joinRoom(inputRoomId) {
 
   updateStatus('Preparing', 'waiting');
   logActivity(`Preparing to join room ${roomId}.`);
+  
+  // Audio unlock for mobile browsers
+  playNotificationSound('silent');
+
   initPeer();
 }
 
@@ -2425,7 +2443,7 @@ function bindEvents() {
   });
 
   elements.textNote.addEventListener('keydown', (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+    if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       queueNote();
     }
