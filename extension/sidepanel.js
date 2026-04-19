@@ -857,12 +857,18 @@ async function startScanner() {
       <div class="permission-pre-prompt" style="text-align:center; padding: 40px 10px;">
         <div style="font-size: 2.5rem; margin-bottom: 15px;">📷</div>
         <p style="margin-bottom: 20px; color: rgba(255,255,255,0.9); font-size: 0.9rem;">Camera access is required.</p>
-        <button id="btn-request-perm" class="btn btn-secondary full">Allow Camera</button>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button id="btn-request-perm" class="btn btn-secondary full">Allow Camera</button>
+          <button id="btn-cancel-perm" class="btn btn-ghost full">Not Now</button>
+        </div>
       </div>
     `;
     document.getElementById('btn-request-perm').onclick = () => {
       readerEl.innerHTML = '';
       initAndStartScanner();
+    };
+    document.getElementById('btn-cancel-perm').onclick = () => {
+      stopScanner();
     };
     return;
   }

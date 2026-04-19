@@ -2481,13 +2481,19 @@ async function startScanner() {
       <div class="permission-pre-prompt" style="text-align:center; padding: 40px 20px;">
         <div style="font-size: 3rem; margin-bottom: 20px;">📷</div>
         <p style="margin-bottom: 25px; color: rgba(255,255,255,0.9);">Camera access is required to scan QR codes.</p>
-        <button id="btn-request-perm" class="btn btn-secondary full">Allow Camera</button>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button id="btn-request-perm" class="btn btn-secondary full">Allow Camera</button>
+          <button id="btn-cancel-perm" class="btn btn-ghost full">Not Now</button>
+        </div>
       </div>
     `;
     document.getElementById('btn-request-perm').onclick = () => {
       readerEl.innerHTML = '';
       if (elements.qrSkeleton) elements.qrSkeleton.classList.remove('hidden');
       initAndStartScanner();
+    };
+    document.getElementById('btn-cancel-perm').onclick = () => {
+      stopScanner();
     };
     return;
   }
